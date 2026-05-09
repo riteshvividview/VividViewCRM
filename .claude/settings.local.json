@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@14 . --typescript --tailwind --eslint --app --src-dir=false --import-alias=\"@/*\" --no-git)",
+      "Read(//home/neelima/Documents/**)",
+      "Bash(npx create-next-app@14 vividview-crm --typescript --tailwind --eslint --app --src-dir=false --import-alias=\"@/*\" --no-git)",
+      "Bash(npx create-next-app@14 vividview-crm --typescript --tailwind --eslint --app --import-alias=\"@/*\" --no-git --use-npm)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/auth/login)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/dashboard)",
+      "Bash(curl -s http://localhost:3000/dashboard)",
+      "Bash(curl -s http://localhost:3000/auth/login)",
+      "Bash(curl -s http://localhost:3000/dashboard/leads)",
+      "Bash(curl -s http://localhost:3001/dashboard/leads)",
+      "Bash(curl -s http://localhost:3001/dashboard/deals)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const content=fs.readFileSync\\('/home/neelima/.claude/projects/-home-neelima-Documents-CRMVividView/918ce469-9b68-41d8-a5de-25c98854e18c/tool-results/bpu7prrf0.txt','utf8'\\); const lines=content.split\\('\\\\n'\\); lines.filter\\(l=>l.includes\\('error'\\)||l.includes\\('Error'\\)||l.includes\\('warning'\\)||l.includes\\('Warning'\\)||l.includes\\('Type'\\)\\).filter\\(l=>!l.includes\\('node_modules'\\)\\).forEach\\(l=>console.log\\(l\\)\\)\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(grep -v \"^$\")"
+    ]
+  }
+}
