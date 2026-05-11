@@ -76,6 +76,181 @@
   }
 }
 
+/* ── Accent colour themes ──────────────────────────────────────────────────
+   Applied via <html data-accent="..."> by ThemeAccentProvider.
+   Overrides --primary / --ring / --sidebar-primary for shadcn components.
+   ──────────────────────────────────────────────────────────────────────── */
+[data-accent="blue"] {
+  --primary: 221 83% 53%;
+  --ring: 221 83% 53%;
+  --sidebar-primary: 221 83% 53%;
+  --sidebar-ring: 221 83% 53%;
+}
+[data-accent="blue"].dark, .dark [data-accent="blue"] {
+  --primary: 217 91% 60%;
+  --ring: 217 91% 60%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-ring: 217 91% 60%;
+}
+[data-accent="emerald"] {
+  --primary: 160 60% 40%;
+  --ring: 160 60% 40%;
+  --sidebar-primary: 160 60% 40%;
+  --sidebar-ring: 160 60% 40%;
+}
+[data-accent="emerald"].dark, .dark [data-accent="emerald"] {
+  --primary: 160 60% 48%;
+  --ring: 160 60% 48%;
+  --sidebar-primary: 160 60% 48%;
+  --sidebar-ring: 160 60% 48%;
+}
+[data-accent="rose"] {
+  --primary: 347 77% 50%;
+  --ring: 347 77% 50%;
+  --sidebar-primary: 347 77% 50%;
+  --sidebar-ring: 347 77% 50%;
+}
+[data-accent="rose"].dark, .dark [data-accent="rose"] {
+  --primary: 347 77% 57%;
+  --ring: 347 77% 57%;
+  --sidebar-primary: 347 77% 57%;
+  --sidebar-ring: 347 77% 57%;
+}
+[data-accent="amber"] {
+  --primary: 38 92% 48%;
+  --ring: 38 92% 48%;
+  --sidebar-primary: 38 92% 48%;
+  --sidebar-ring: 38 92% 48%;
+}
+[data-accent="amber"].dark, .dark [data-accent="amber"] {
+  --primary: 38 92% 55%;
+  --ring: 38 92% 55%;
+  --sidebar-primary: 38 92% 55%;
+  --sidebar-ring: 38 92% 55%;
+}
+[data-accent="slate"] {
+  --primary: 215 16% 42%;
+  --ring: 215 16% 42%;
+  --sidebar-primary: 215 16% 42%;
+  --sidebar-ring: 215 16% 42%;
+}
+
+/* ── Hardcoded Tailwind purple → accent override ──────────────────────────────
+   Light-mode rules: target plain purple-* classes (always visible).
+   Dark-mode rules: scoped to [data-accent].dark so they ONLY fire when the
+   .dark class is also on <html> — prevents tinting the light-mode UI.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Blue — light mode ── */
+[data-accent="blue"] .text-purple-600,
+[data-accent="blue"] .text-purple-700 { color: #2563eb !important; }
+[data-accent="blue"] .bg-purple-50  { background-color: #eff6ff !important; }
+[data-accent="blue"] .bg-purple-100 { background-color: #dbeafe !important; }
+[data-accent="blue"] .bg-purple-600 { background-color: #2563eb !important; }
+[data-accent="blue"] .bg-purple-700 { background-color: #1d4ed8 !important; }
+[data-accent="blue"] .hover\:bg-purple-700:hover { background-color: #1d4ed8 !important; }
+[data-accent="blue"] .border-purple-300 { border-color: #93c5fd !important; }
+[data-accent="blue"] .border-purple-500 { border-color: #3b82f6 !important; }
+[data-accent="blue"] .border-purple-600 { border-color: #2563eb !important; }
+[data-accent="blue"] .hover\:border-purple-200:hover { border-color: #bfdbfe !important; }
+[data-accent="blue"] .from-purple-600 { --tw-gradient-from: #2563eb var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+[data-accent="blue"] .to-violet-700  { --tw-gradient-to: #1d4ed8 var(--tw-gradient-to-position) !important; }
+/* ── Blue — dark mode ── */
+[data-accent="blue"].dark .dark\:text-purple-300 { color: #93c5fd !important; }
+[data-accent="blue"].dark .dark\:text-purple-700 { color: #60a5fa !important; }
+[data-accent="blue"].dark .dark\:bg-purple-900\/30  { background-color: rgb(30 64 175 / 0.3) !important; }
+[data-accent="blue"].dark .dark\:bg-purple-900\/50  { background-color: rgb(30 64 175 / 0.5) !important; }
+[data-accent="blue"].dark .dark\:bg-purple-950\/30  { background-color: rgb(23 37 84 / 0.3) !important; }
+[data-accent="blue"].dark .dark\:hover\:border-purple-800:hover { border-color: #1e40af !important; }
+
+/* ── Emerald — light mode ── */
+[data-accent="emerald"] .text-purple-600,
+[data-accent="emerald"] .text-purple-700 { color: #059669 !important; }
+[data-accent="emerald"] .bg-purple-50  { background-color: #ecfdf5 !important; }
+[data-accent="emerald"] .bg-purple-100 { background-color: #d1fae5 !important; }
+[data-accent="emerald"] .bg-purple-600 { background-color: #059669 !important; }
+[data-accent="emerald"] .bg-purple-700 { background-color: #047857 !important; }
+[data-accent="emerald"] .hover\:bg-purple-700:hover { background-color: #047857 !important; }
+[data-accent="emerald"] .border-purple-300 { border-color: #6ee7b7 !important; }
+[data-accent="emerald"] .border-purple-500 { border-color: #10b981 !important; }
+[data-accent="emerald"] .border-purple-600 { border-color: #059669 !important; }
+[data-accent="emerald"] .hover\:border-purple-200:hover { border-color: #a7f3d0 !important; }
+[data-accent="emerald"] .from-purple-600 { --tw-gradient-from: #059669 var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+[data-accent="emerald"] .to-violet-700  { --tw-gradient-to: #047857 var(--tw-gradient-to-position) !important; }
+/* ── Emerald — dark mode ── */
+[data-accent="emerald"].dark .dark\:text-purple-300 { color: #6ee7b7 !important; }
+[data-accent="emerald"].dark .dark\:text-purple-700 { color: #34d399 !important; }
+[data-accent="emerald"].dark .dark\:bg-purple-900\/30  { background-color: rgb(6 78 59 / 0.3) !important; }
+[data-accent="emerald"].dark .dark\:bg-purple-900\/50  { background-color: rgb(6 78 59 / 0.5) !important; }
+[data-accent="emerald"].dark .dark\:bg-purple-950\/30  { background-color: rgb(2 44 34 / 0.3) !important; }
+[data-accent="emerald"].dark .dark\:hover\:border-purple-800:hover { border-color: #065f46 !important; }
+
+/* ── Rose — light mode ── */
+[data-accent="rose"] .text-purple-600,
+[data-accent="rose"] .text-purple-700 { color: #e11d48 !important; }
+[data-accent="rose"] .bg-purple-50  { background-color: #fff1f2 !important; }
+[data-accent="rose"] .bg-purple-100 { background-color: #ffe4e6 !important; }
+[data-accent="rose"] .bg-purple-600 { background-color: #e11d48 !important; }
+[data-accent="rose"] .bg-purple-700 { background-color: #be123c !important; }
+[data-accent="rose"] .hover\:bg-purple-700:hover { background-color: #be123c !important; }
+[data-accent="rose"] .border-purple-300 { border-color: #fda4af !important; }
+[data-accent="rose"] .border-purple-500 { border-color: #f43f5e !important; }
+[data-accent="rose"] .border-purple-600 { border-color: #e11d48 !important; }
+[data-accent="rose"] .hover\:border-purple-200:hover { border-color: #fecdd3 !important; }
+[data-accent="rose"] .from-purple-600 { --tw-gradient-from: #e11d48 var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+[data-accent="rose"] .to-violet-700  { --tw-gradient-to: #be123c var(--tw-gradient-to-position) !important; }
+/* ── Rose — dark mode ── */
+[data-accent="rose"].dark .dark\:text-purple-300 { color: #fda4af !important; }
+[data-accent="rose"].dark .dark\:text-purple-700 { color: #fb7185 !important; }
+[data-accent="rose"].dark .dark\:bg-purple-900\/30  { background-color: rgb(136 19 55 / 0.3) !important; }
+[data-accent="rose"].dark .dark\:bg-purple-900\/50  { background-color: rgb(136 19 55 / 0.5) !important; }
+[data-accent="rose"].dark .dark\:bg-purple-950\/30  { background-color: rgb(76 5 25 / 0.3) !important; }
+[data-accent="rose"].dark .dark\:hover\:border-purple-800:hover { border-color: #9f1239 !important; }
+
+/* ── Amber — light mode ── */
+[data-accent="amber"] .text-purple-600,
+[data-accent="amber"] .text-purple-700 { color: #d97706 !important; }
+[data-accent="amber"] .bg-purple-50  { background-color: #fffbeb !important; }
+[data-accent="amber"] .bg-purple-100 { background-color: #fef3c7 !important; }
+[data-accent="amber"] .bg-purple-600 { background-color: #d97706 !important; }
+[data-accent="amber"] .bg-purple-700 { background-color: #b45309 !important; }
+[data-accent="amber"] .hover\:bg-purple-700:hover { background-color: #b45309 !important; }
+[data-accent="amber"] .border-purple-300 { border-color: #fcd34d !important; }
+[data-accent="amber"] .border-purple-500 { border-color: #f59e0b !important; }
+[data-accent="amber"] .border-purple-600 { border-color: #d97706 !important; }
+[data-accent="amber"] .hover\:border-purple-200:hover { border-color: #fde68a !important; }
+[data-accent="amber"] .from-purple-600 { --tw-gradient-from: #d97706 var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+[data-accent="amber"] .to-violet-700  { --tw-gradient-to: #b45309 var(--tw-gradient-to-position) !important; }
+/* ── Amber — dark mode ── */
+[data-accent="amber"].dark .dark\:text-purple-300 { color: #fcd34d !important; }
+[data-accent="amber"].dark .dark\:text-purple-700 { color: #fbbf24 !important; }
+[data-accent="amber"].dark .dark\:bg-purple-900\/30  { background-color: rgb(120 53 15 / 0.3) !important; }
+[data-accent="amber"].dark .dark\:bg-purple-900\/50  { background-color: rgb(120 53 15 / 0.5) !important; }
+[data-accent="amber"].dark .dark\:bg-purple-950\/30  { background-color: rgb(69 26 3 / 0.3) !important; }
+[data-accent="amber"].dark .dark\:hover\:border-purple-800:hover { border-color: #92400e !important; }
+
+/* ── Slate — light mode ── */
+[data-accent="slate"] .text-purple-600,
+[data-accent="slate"] .text-purple-700 { color: #475569 !important; }
+[data-accent="slate"] .bg-purple-50  { background-color: #f8fafc !important; }
+[data-accent="slate"] .bg-purple-100 { background-color: #f1f5f9 !important; }
+[data-accent="slate"] .bg-purple-600 { background-color: #475569 !important; }
+[data-accent="slate"] .bg-purple-700 { background-color: #334155 !important; }
+[data-accent="slate"] .hover\:bg-purple-700:hover { background-color: #334155 !important; }
+[data-accent="slate"] .border-purple-300 { border-color: #cbd5e1 !important; }
+[data-accent="slate"] .border-purple-500 { border-color: #64748b !important; }
+[data-accent="slate"] .border-purple-600 { border-color: #475569 !important; }
+[data-accent="slate"] .hover\:border-purple-200:hover { border-color: #e2e8f0 !important; }
+[data-accent="slate"] .from-purple-600 { --tw-gradient-from: #475569 var(--tw-gradient-from-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+[data-accent="slate"] .to-violet-700  { --tw-gradient-to: #334155 var(--tw-gradient-to-position) !important; }
+/* ── Slate — dark mode ── */
+[data-accent="slate"].dark .dark\:text-purple-300 { color: #94a3b8 !important; }
+[data-accent="slate"].dark .dark\:text-purple-700 { color: #64748b !important; }
+[data-accent="slate"].dark .dark\:bg-purple-900\/30  { background-color: rgb(15 23 42 / 0.3) !important; }
+[data-accent="slate"].dark .dark\:bg-purple-900\/50  { background-color: rgb(15 23 42 / 0.5) !important; }
+[data-accent="slate"].dark .dark\:bg-purple-950\/30  { background-color: rgb(2 6 23 / 0.3) !important; }
+[data-accent="slate"].dark .dark\:hover\:border-purple-800:hover { border-color: #1e293b !important; }
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;

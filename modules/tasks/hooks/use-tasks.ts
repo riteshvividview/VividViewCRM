@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 import type { Task, TaskStatus } from "../types";
 
 const today = new Date().toISOString().split("T")[0];
@@ -20,18 +21,30 @@ export const MOCK_TASKS: Task[] = [
 ];
 
 export function useTasks() {
+  const profile = useShellProfile();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const currentUserId = profile?.user_id ?? null;
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!url) { await new Promise((r) => setTimeout(r, 350)); setTasks(MOCK_TASKS); return; }
+      if (!url) {
+        await new Promise((r) => setTimeout(r, 350));
+        setTasks(MOCK_TASKS);
+        return;
+      }
       const { createClient } = await import("@/lib/supabase/client");
-      const { data } = await createClient().from("tasks").select("*").order("created_at", { ascending: false });
-      setTasks(data ?? []);
-    } finally { setLoading(false); }
+      const supabase = createClient();
+      const { data: taskData } = await supabase
+        .from("tasks")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setTasks(taskData ?? []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
@@ -53,7 +66,7 @@ export function useTasks() {
       sub_tasks: t.sub_tasks ?? [],
       recurring_pattern: t.recurring_pattern ?? null,
       tags: t.tags ?? [],
-      created_by: "u1",
+      created_by: currentUserId ?? "u1",
       workspace_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -62,10 +75,18 @@ export function useTasks() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (url) {
       const { createClient } = await import("@/lib/supabase/client");
-      await createClient().from("tasks").insert([n]);
+      const supabase = createClient();
+      // Get the real user ID at insert time in case it wasn't ready at mount
+      const { data: { user } } = await supabase.auth.getUser();
+      const payload = {
+        ...n,
+        created_by: user?.id ?? null,
+        assignee_id: n.assignee_id ?? null,
+      };
+      await supabase.from("tasks").insert([payload]);
     }
     return n;
-  }, []);
+  }, [currentUserId]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     setTasks((p) => p.map((t) => t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t));
@@ -83,5 +104,5 @@ export function useTasks() {
     await createClient().from("tasks").delete().eq("id", id);
   }, []);
 
-  return { tasks, loading, fetchTasks, addTask, updateTask, deleteTask, setTasks };
+  return { tasks, loading, fetchTasks, addTask, updateTask, deleteTask, setTasks, currentUserId };
 }

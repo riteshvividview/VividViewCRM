@@ -99,9 +99,9 @@ export function ReportBuilder({ onSave }: ReportBuilderProps) {
   }
 
   return (
-    <div className="flex h-full min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row h-full min-h-screen bg-background">
       {/* Left panel: source + fields */}
-      <aside className="w-56 shrink-0 border-r border-border bg-muted/20 p-4 space-y-5">
+      <aside className="w-full md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-border bg-muted/20 p-4 space-y-5">
         <div>
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Data Source</p>
           <div className="space-y-1">

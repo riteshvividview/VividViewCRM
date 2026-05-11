@@ -7,7 +7,7 @@
 create extension if not exists "uuid-ossp";
 
 -- ──────────────────────────────────────────
--- WORKSPACES
+-- WORKSPACES  (table only — policies added after profiles exists)
 -- ──────────────────────────────────────────
 create table if not exists public.workspaces (
   id          uuid primary key default uuid_generate_v4(),
@@ -18,20 +18,8 @@ create table if not exists public.workspaces (
   created_at  timestamptz default now()
 );
 
-alter table public.workspaces enable row level security;
-
-create policy "Workspace members can view their workspace"
-  on public.workspaces for select
-  using (owner_id = auth.uid() or id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
-create policy "Workspace owner can update workspace"
-  on public.workspaces for update
-  using (owner_id = auth.uid());
-
 -- ──────────────────────────────────────────
--- PROFILES
+-- PROFILES  (references workspaces, so workspaces must exist first)
 -- ──────────────────────────────────────────
 create table if not exists public.profiles (
   id            uuid primary key default uuid_generate_v4(),
@@ -39,7 +27,11 @@ create table if not exists public.profiles (
   workspace_id  uuid references public.workspaces(id) on delete set null,
   full_name     text not null default '',
   avatar_url    text,
-  role          text not null default 'sales_rep' check (role in ('admin', 'manager', 'sales_rep')),
+  role          text not null default 'content_creator' check (role in (
+    'admin', 'brand_manager', 'video_editor', 'social_media_manager',
+    'content_creator', 'seo_specialist', 'campaign_manager', 'account_manager',
+    'graphic_designer', 'digital_strategist', 'copywriter'
+  )),
   created_at    timestamptz default now(),
   unique (user_id)
 );
@@ -81,19 +73,37 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ──────────────────────────────────────────
+-- WORKSPACES  RLS — now that profiles exists we can add the membership policy
+-- ──────────────────────────────────────────
+alter table public.workspaces enable row level security;
+
+create policy "Workspace members can view their workspace"
+  on public.workspaces for select
+  using (owner_id = auth.uid() or id in (
+    select workspace_id from public.profiles where user_id = auth.uid()
+  ));
+
+create policy "Workspace owner can update workspace"
+  on public.workspaces for update
+  using (owner_id = auth.uid());
+
+-- ──────────────────────────────────────────
 -- LEADS
 -- ──────────────────────────────────────────
 create table if not exists public.leads (
   id            uuid primary key default uuid_generate_v4(),
   workspace_id  uuid references public.workspaces(id) on delete cascade,
-  full_name     text not null,
+  name          text not null,
   email         text,
   phone         text,
   company       text,
-  status        text not null default 'New' check (status in ('New','Contacted','Qualified','Proposal','Negotiation','Won','Lost')),
-  score         int default 0,
-  value         numeric(12,2),
+  company_id    uuid,
+  source        text check (source in ('Website','Referral','Cold Call','Social Media','Event','Email Campaign','Partner','Other')),
+  status        text not null default 'New' check (status in ('New','Contacted','Qualified','Proposal','Won','Lost')),
+  score         int not null default 0 check (score between 0 and 100),
   assigned_to   uuid references public.profiles(id) on delete set null,
+  assigned_name text,
+  custom_fields jsonb,
   notes         text,
   created_by    uuid references auth.users(id) on delete set null,
   created_at    timestamptz default now(),
@@ -102,20 +112,8 @@ create table if not exists public.leads (
 
 alter table public.leads enable row level security;
 
-create policy "Workspace members can view leads"
-  on public.leads for select
-  using (workspace_id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
-create policy "Workspace members can insert leads"
-  on public.leads for insert
-  with check (workspace_id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
-create policy "Workspace members can update leads"
-  on public.leads for update
+create policy "Workspace members can manage leads"
+  on public.leads for all
   using (workspace_id in (
     select workspace_id from public.profiles where user_id = auth.uid()
   ));
@@ -124,20 +122,26 @@ create policy "Workspace members can update leads"
 -- DEALS
 -- ──────────────────────────────────────────
 create table if not exists public.deals (
-  id            uuid primary key default uuid_generate_v4(),
-  workspace_id  uuid references public.workspaces(id) on delete cascade,
-  title         text not null,
-  company       text,
-  value         numeric(12,2),
-  stage         text not null default 'Discovery' check (stage in ('Discovery','Proposal','Negotiation','Closed Won','Closed Lost')),
-  probability   int default 0 check (probability between 0 and 100),
-  expected_close date,
-  assigned_to   uuid references public.profiles(id) on delete set null,
-  lead_id       uuid references public.leads(id) on delete set null,
-  notes         text,
-  created_by    uuid references auth.users(id) on delete set null,
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
+  id             uuid primary key default uuid_generate_v4(),
+  workspace_id   uuid references public.workspaces(id) on delete cascade,
+  title          text not null,
+  lead_id        uuid references public.leads(id) on delete set null,
+  stage          text not null default 'Av. Leads' check (stage in ('Av. Leads','Samples Sent','Quotes','Negotiations','Sales')),
+  value          numeric(14,2) not null default 0,
+  currency       text not null default 'INR',
+  close_date     date,
+  assigned_to    uuid references public.profiles(id) on delete set null,
+  assigned_name  text,
+  assigned_avatar text,
+  location       text check (location in ('Delhi','Mumbai','Bangalore','Chennai','Hyderabad','Other')),
+  notes          text,
+  company        text,
+  contact_name   text,
+  won_lost_reason text,
+  days_in_stage  int not null default 0,
+  created_by     uuid references auth.users(id) on delete set null,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
 );
 
 alter table public.deals enable row level security;
@@ -169,115 +173,6 @@ alter table public.contacts enable row level security;
 
 create policy "Workspace members can manage contacts"
   on public.contacts for all
-  using (workspace_id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
--- ──────────────────────────────────────────
--- ACTION ITEMS
--- ──────────────────────────────────────────
-create table if not exists public.action_items (
-  id            uuid primary key default uuid_generate_v4(),
-  workspace_id  uuid references public.workspaces(id) on delete cascade,
-  title         text not null,
-  priority      text default 'Medium' check (priority in ('High','Medium','Low')),
-  status        text default 'Pending' check (status in ('Pending','In Progress','Completed')),
-  due_date      date,
-  assigned_to   uuid references public.profiles(id) on delete set null,
-  related_lead  uuid references public.leads(id) on delete set null,
-  related_deal  uuid references public.deals(id) on delete set null,
-  created_by    uuid references auth.users(id),
-  created_at    timestamptz default now()
-);
-
-alter table public.action_items enable row level security;
-
-create policy "Workspace members can manage action items"
-  on public.action_items for all
-  using (workspace_id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
--- ──────────────────────────────────────────
--- Updated_at trigger
--- ──────────────────────────────────────────
-create or replace function update_updated_at()
-returns trigger language plpgsql as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-create trigger leads_updated_at before update on public.leads for each row execute procedure update_updated_at();
-create trigger deals_updated_at before update on public.deals for each row execute procedure update_updated_at();
-
--- ──────────────────────────────────────────
--- PHASE 2: ENHANCED LEADS TABLE
--- ──────────────────────────────────────────
--- Drop old leads and recreate with full schema
-drop table if exists public.leads cascade;
-
-create table if not exists public.leads (
-  id            uuid primary key default uuid_generate_v4(),
-  workspace_id  uuid references public.workspaces(id) on delete cascade,
-  name          text not null,
-  email         text,
-  phone         text,
-  company       text,
-  company_id    uuid,
-  source        text check (source in ('Website','Referral','Cold Call','Social Media','Event','Email Campaign','Partner','Other')),
-  status        text not null default 'New' check (status in ('New','Contacted','Qualified','Proposal','Won','Lost')),
-  score         int not null default 0 check (score between 0 and 100),
-  assigned_to   uuid references public.profiles(id) on delete set null,
-  assigned_name text,
-  custom_fields jsonb,
-  notes         text,
-  created_by    uuid references auth.users(id) on delete set null,
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
-);
-
-alter table public.leads enable row level security;
-
-create policy "Workspace members can manage leads"
-  on public.leads for all
-  using (workspace_id in (
-    select workspace_id from public.profiles where user_id = auth.uid()
-  ));
-
--- ──────────────────────────────────────────
--- PHASE 2: ENHANCED DEALS TABLE
--- ──────────────────────────────────────────
-drop table if exists public.deals cascade;
-
-create table if not exists public.deals (
-  id             uuid primary key default uuid_generate_v4(),
-  workspace_id   uuid references public.workspaces(id) on delete cascade,
-  title          text not null,
-  lead_id        uuid references public.leads(id) on delete set null,
-  stage          text not null default 'Av. Leads' check (stage in ('Av. Leads','Samples Sent','Quotes','Negotiations','Sales')),
-  value          numeric(14,2) not null default 0,
-  currency       text not null default 'INR',
-  close_date     date,
-  assigned_to    uuid references public.profiles(id) on delete set null,
-  assigned_name  text,
-  assigned_avatar text,
-  location       text check (location in ('Delhi','Mumbai','Bangalore','Chennai','Hyderabad','Other')),
-  notes          text,
-  company        text,
-  contact_name   text,
-  won_lost_reason text,
-  days_in_stage  int not null default 0,
-  created_by     uuid references auth.users(id) on delete set null,
-  created_at     timestamptz default now(),
-  updated_at     timestamptz default now()
-);
-
-alter table public.deals enable row level security;
-
-create policy "Workspace members can manage deals"
-  on public.deals for all
   using (workspace_id in (
     select workspace_id from public.profiles where user_id = auth.uid()
   ));
@@ -326,14 +221,6 @@ create policy "Workspace members can manage lead activities"
     where p.user_id = auth.uid()
   ));
 
--- Updated_at triggers for new tables
-create trigger leads_v2_updated_at before update on public.leads for each row execute procedure update_updated_at();
-create trigger deals_v2_updated_at before update on public.deals for each row execute procedure update_updated_at();
-
--- ==========================================
--- PHASE 4: TASKS, CALENDAR EVENTS, NOTIFICATIONS
--- ==========================================
-
 -- ──────────────────────────────────────────
 -- TASKS
 -- ──────────────────────────────────────────
@@ -362,6 +249,7 @@ create table if not exists public.tasks (
 );
 
 alter table public.tasks enable row level security;
+
 create policy "Users can manage their workspace tasks"
   on public.tasks for all
   using (
@@ -369,9 +257,6 @@ create policy "Users can manage their workspace tasks"
     or assignee_id = auth.uid()
     or created_by = auth.uid()
   );
-
-create trigger tasks_updated_at before update on public.tasks
-  for each row execute procedure update_updated_at();
 
 -- ──────────────────────────────────────────
 -- CALENDAR EVENTS
@@ -397,6 +282,7 @@ create table if not exists public.calendar_events (
 );
 
 alter table public.calendar_events enable row level security;
+
 create policy "Workspace members can manage calendar events"
   on public.calendar_events for all
   using (
@@ -420,6 +306,7 @@ create table if not exists public.notifications (
 );
 
 alter table public.notifications enable row level security;
+
 create policy "Users can manage their own notifications"
   on public.notifications for all
   using (user_id = auth.uid());
@@ -445,15 +332,13 @@ create table if not exists public.email_templates (
 );
 
 alter table public.email_templates enable row level security;
+
 create policy "Workspace members can manage email templates"
   on public.email_templates for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
 
-create trigger email_templates_updated_at before update on public.email_templates
-  for each row execute procedure update_updated_at();
-
 -- ──────────────────────────────────────────
--- CAMPAIGNS
+-- CAMPAIGNS (email)
 -- ──────────────────────────────────────────
 create table if not exists public.campaigns (
   id              uuid primary key default uuid_generate_v4(),
@@ -474,12 +359,10 @@ create table if not exists public.campaigns (
 );
 
 alter table public.campaigns enable row level security;
+
 create policy "Workspace members can manage campaigns"
   on public.campaigns for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
-
-create trigger campaigns_updated_at before update on public.campaigns
-  for each row execute procedure update_updated_at();
 
 -- ──────────────────────────────────────────
 -- EMAIL ACCOUNTS
@@ -512,12 +395,10 @@ create table if not exists public.email_accounts (
 );
 
 alter table public.email_accounts enable row level security;
+
 create policy "Workspace members can manage email accounts"
   on public.email_accounts for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
-
-create trigger email_accounts_updated_at before update on public.email_accounts
-  for each row execute procedure update_updated_at();
 
 -- ──────────────────────────────────────────
 -- TEAMS
@@ -532,12 +413,12 @@ create table if not exists public.teams (
   created_at   timestamptz default now(),
   updated_at   timestamptz default now()
 );
+
 alter table public.teams enable row level security;
+
 create policy "Workspace members can manage teams"
   on public.teams for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
-create trigger teams_updated_at before update on public.teams
-  for each row execute procedure update_updated_at();
 
 -- ──────────────────────────────────────────
 -- TEAM MEMBERS JUNCTION
@@ -552,7 +433,9 @@ create table if not exists public.team_members (
   joined_at    timestamptz default now(),
   unique(team_id, user_id)
 );
+
 alter table public.team_members enable row level security;
+
 create policy "Workspace members can view team memberships"
   on public.team_members for all
   using (
@@ -560,6 +443,7 @@ create policy "Workspace members can view team memberships"
       select workspace_id from public.profiles where user_id = auth.uid()
     ))
   );
+
 create index if not exists team_members_team_id on public.team_members(team_id);
 create index if not exists team_members_user_id on public.team_members(user_id);
 
@@ -580,12 +464,12 @@ create table if not exists public.targets (
   created_at      timestamptz default now(),
   updated_at      timestamptz default now()
 );
+
 alter table public.targets enable row level security;
+
 create policy "Workspace members can manage targets"
   on public.targets for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
-create trigger targets_updated_at before update on public.targets
-  for each row execute procedure update_updated_at();
 
 -- ──────────────────────────────────────────
 -- TERRITORIES
@@ -600,7 +484,9 @@ create table if not exists public.territories (
   workspace_id         uuid references public.workspaces(id) on delete cascade,
   created_at           timestamptz default now()
 );
+
 alter table public.territories enable row level security;
+
 create policy "Workspace members can manage territories"
   on public.territories for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
@@ -631,9 +517,96 @@ create table if not exists public.marketing_campaigns (
   created_at           timestamptz default now(),
   updated_at           timestamptz default now()
 );
+
 alter table public.marketing_campaigns enable row level security;
+
 create policy "Workspace members can manage marketing campaigns"
   on public.marketing_campaigns for all
   using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid()));
-create trigger marketing_campaigns_updated_at before update on public.marketing_campaigns
-  for each row execute procedure update_updated_at();
+
+-- ──────────────────────────────────────────
+-- DOCUMENTS
+-- ──────────────────────────────────────────
+create table if not exists public.documents (
+  id            uuid primary key default uuid_generate_v4(),
+  title         text not null default 'Untitled',
+  icon          text default 'File',
+  content       jsonb default '{"blocks":[]}'::jsonb,
+  is_template   boolean not null default false,
+  template_type text,
+  owner_id      uuid references auth.users(id) on delete set null,
+  workspace_id  uuid references public.workspaces(id) on delete cascade,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+
+alter table public.documents enable row level security;
+
+create policy "Workspace members can manage documents"
+  on public.documents for all
+  using (workspace_id in (select workspace_id from public.profiles where user_id = auth.uid())
+    or owner_id = auth.uid());
+
+-- ──────────────────────────────────────────
+-- updated_at trigger function + triggers
+-- ──────────────────────────────────────────
+create or replace function public.update_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger leads_updated_at            before update on public.leads            for each row execute procedure public.update_updated_at();
+create trigger deals_updated_at            before update on public.deals            for each row execute procedure public.update_updated_at();
+create trigger tasks_updated_at            before update on public.tasks            for each row execute procedure public.update_updated_at();
+create trigger teams_updated_at            before update on public.teams            for each row execute procedure public.update_updated_at();
+create trigger targets_updated_at          before update on public.targets          for each row execute procedure public.update_updated_at();
+create trigger campaigns_updated_at        before update on public.campaigns        for each row execute procedure public.update_updated_at();
+create trigger email_templates_updated_at  before update on public.email_templates  for each row execute procedure public.update_updated_at();
+create trigger email_accounts_updated_at   before update on public.email_accounts   for each row execute procedure public.update_updated_at();
+create trigger marketing_campaigns_updated_at before update on public.marketing_campaigns for each row execute procedure public.update_updated_at();
+create trigger documents_updated_at        before update on public.documents        for each row execute procedure public.update_updated_at();
+
+-- ──────────────────────────────────────────
+-- OTP VERIFICATIONS  (Brevo OTP auth)
+-- ──────────────────────────────────────────
+
+create table if not exists public.otp_verifications (
+  id           uuid        primary key default gen_random_uuid(),
+  email        text        not null,
+  otp_hash     text        not null,
+  type         text        not null check (type in ('password_reset', 'password_change', 'device_verify', 'registration')),
+  expires_at   timestamptz not null,
+  used_at      timestamptz,
+  reset_token  text,
+  created_at   timestamptz default now()
+);
+
+create index if not exists otp_verifications_email_type
+  on public.otp_verifications(email, type, created_at desc);
+
+-- Disable RLS (server-only access via service role key)
+alter table public.otp_verifications disable row level security;
+
+-- Helper: look up an auth user UUID by email (SECURITY DEFINER accesses auth.users)
+create or replace function public.get_user_id_by_email(user_email text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select id from auth.users where email = user_email limit 1;
+$$;
+
+-- Known devices per user (set via cookie after first login + OTP on new device)
+create table if not exists public.user_devices (
+  id           uuid        primary key default gen_random_uuid(),
+  user_id      uuid        not null references auth.users(id) on delete cascade,
+  device_token text        not null unique,
+  created_at   timestamptz default now(),
+  last_seen    timestamptz default now()
+);
+create index if not exists user_devices_user_id on public.user_devices(user_id);
+alter table public.user_devices disable row level security;

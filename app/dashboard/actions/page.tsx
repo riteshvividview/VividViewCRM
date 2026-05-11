@@ -23,8 +23,14 @@ type FilterPreset = "all" | "mine" | "overdue" | "today";
 
 const VIEW_ICONS = { board: LayoutGrid, table: Table2, timeline: GanttChartSquare, list: List };
 
+const FALLBACK_ASSIGNEES = [
+  { id: "u1", name: "Alex Kumar" },
+  { id: "u2", name: "Priya Singh" },
+  { id: "u3", name: "Sam Tiwari" },
+];
+
 export default function ActionsPage() {
-  const { tasks, loading, addTask, updateTask, deleteTask } = useTasks();
+  const { tasks, loading, addTask, updateTask, deleteTask, currentUserId } = useTasks();
   const [view, setView] = useState<ViewMode>("board");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterPreset>("all");
@@ -33,6 +39,22 @@ export default function ActionsPage() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [listGroupBy, setListGroupBy] = useState<"assignee" | "due_date" | "status">("due_date");
+  const [assignees, setAssignees] = useState(FALLBACK_ASSIGNEES);
+
+  useEffect(() => {
+    async function fetchAssignees() {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!url) return;
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const { data } = await createClient().from("profiles").select("user_id, full_name");
+        if (data && data.length > 0) {
+          setAssignees(data.map((r) => ({ id: r.user_id as string, name: (r.full_name as string) || "Unknown" })));
+        }
+      } catch {}
+    }
+    fetchAssignees();
+  }, []);
 
   // Global "T" hotkey for quick add
   useEffect(() => {
@@ -49,7 +71,7 @@ export default function ActionsPage() {
     let result = tasks;
     const today = new Date(); today.setHours(23, 59, 59, 999);
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    if (filter === "mine") result = result.filter((t) => t.assignee_id === "u1");
+    if (filter === "mine") result = result.filter((t) => t.assignee_id === currentUserId);
     if (filter === "overdue") result = result.filter((t) => t.due_date && new Date(t.due_date) < new Date() && t.status !== "done");
     if (filter === "today") result = result.filter((t) => t.due_date && new Date(t.due_date) >= todayStart && new Date(t.due_date) <= today);
     if (search.trim()) {
@@ -57,7 +79,7 @@ export default function ActionsPage() {
       result = result.filter((t) => t.title.toLowerCase().includes(q) || (t.linked_entity_name ?? "").toLowerCase().includes(q));
     }
     return result;
-  }, [tasks, filter, search]);
+  }, [tasks, filter, search, currentUserId]);
 
   const overdueCt = tasks.filter((t) => t.due_date && new Date(t.due_date) < new Date() && t.status !== "done").length;
   const todayCt = tasks.filter((t) => {
@@ -79,7 +101,7 @@ export default function ActionsPage() {
   function handleBulkDelete() { selectedIds.forEach((id) => deleteTask(id)); setSelectedIds([]); }
 
   async function handleBulkAssign(assignee_name: string) {
-    const a = [{ id: "u1", name: "Alex Kumar" }, { id: "u2", name: "Priya Singh" }, { id: "u3", name: "Sam Tiwari" }].find((a) => a.name === assignee_name);
+    const a = assignees.find((a) => a.name === assignee_name);
     await Promise.all(selectedIds.map((id) => updateTask(id, { assignee_id: a?.id ?? null, assignee_name })));
     setSelectedIds([]);
   }
@@ -140,7 +162,7 @@ export default function ActionsPage() {
                   <Users className="h-3 w-3 mr-1" />Assign
                 </SelectTrigger>
                 <SelectContent>
-                  {["Alex Kumar", "Priya Singh", "Sam Tiwari"].map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  {assignees.map((a) => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Button variant="ghost" size="sm" className="h-6 text-xs text-red-500 hover:text-red-700 px-1" onClick={handleBulkDelete}>
@@ -222,6 +244,7 @@ export default function ActionsPage() {
         onClose={() => setPanelOpen(false)}
         onUpdate={handleUpdate}
         onDelete={deleteTask}
+        assignees={assignees}
       />
 
       <QuickAddTask

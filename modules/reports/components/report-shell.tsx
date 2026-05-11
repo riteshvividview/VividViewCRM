@@ -40,9 +40,9 @@ export function ReportShell({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex flex-col md:flex-row min-h-screen">
       {/* Left: filter sidebar */}
-      <aside className="w-56 shrink-0 border-r border-border bg-muted/20 p-4 space-y-5 print:hidden">
+      <aside className="w-full md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-border bg-muted/20 p-4 space-y-5 print:hidden">
         <Link href="/dashboard/reports" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" />All Reports
         </Link>

@@ -1,5 +1,8 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
+let _client: ReturnType<typeof createClientComponentClient> | null = null;
+
 export function createClient() {
-  return createClientComponentClient();
+  if (!_client) _client = createClientComponentClient();
+  return _client;
 }

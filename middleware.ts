@@ -2,7 +2,7 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/callback"];
+const PUBLIC_ROUTES = ["/auth/login", "/auth/signup", "/auth/forgot-password", "/auth/callback", "/auth/verify-otp", "/auth/reset-password"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -15,12 +15,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Pass headers through so auth-helpers can refresh the session cookie
   const response = NextResponse.next({ request: { headers: request.headers } });
   const supabase = createMiddlewareClient({ req: request, res: response });
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // getSession reads from the cookie — refreshes silently only when token is near expiry
+  const { data: { session } } = await supabase.auth.getSession();
 
   if (!session && !isPublicRoute) {
     const loginUrl = new URL("/auth/login", request.url);
@@ -28,11 +28,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (session && pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  if (session && isPublicRoute) {
+  // Allow authenticated users to stay on verify-otp (used for device verification after login)
+  if (session && (pathname === "/" || isPublicRoute) && !pathname.startsWith("/auth/verify-otp")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -40,5 +37,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

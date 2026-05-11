@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { ProfileProvider } from "@/lib/supabase/profile-context";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types";
 
@@ -28,29 +29,31 @@ export function Shell({ children, profile }: ShellProps) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex">
-        <Sidebar collapsed={collapsed} onToggle={toggle} />
-      </div>
-
-      {/* Mobile sidebar overlay */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="relative z-10 flex">
-            <Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
-          </div>
+    <ProfileProvider profile={profile}>
+      <div className="flex h-screen overflow-hidden bg-background">
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
+          <Sidebar collapsed={collapsed} onToggle={toggle} />
         </div>
-      )}
 
-      {/* Main */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Topbar profile={profile} />
-        <main className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="animate-fade-in p-6 max-w-screen-2xl mx-auto">{children}</div>
-        </main>
+        {/* Mobile sidebar overlay */}
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+            <div className="relative z-10 flex">
+              <Sidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
+            </div>
+          </div>
+        )}
+
+        {/* Main */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <Topbar profile={profile} onMenuOpen={() => setMobileOpen(true)} />
+          <main className="flex-1 overflow-y-auto scrollbar-thin">
+            <div className="animate-fade-in p-3 sm:p-6 max-w-screen-2xl mx-auto">{children}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </ProfileProvider>
   );
 }

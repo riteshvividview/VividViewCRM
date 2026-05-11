@@ -1,4 +1,15 @@
-export type UserRole = "admin" | "manager" | "sales_rep";
+export type UserRole =
+  | "admin"
+  | "brand_manager"
+  | "video_editor"
+  | "social_media_manager"
+  | "content_creator"
+  | "seo_specialist"
+  | "campaign_manager"
+  | "account_manager"
+  | "graphic_designer"
+  | "digital_strategist"
+  | "copywriter";
 
 export interface Profile {
   id: string;

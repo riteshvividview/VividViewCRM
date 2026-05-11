@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import type { Task, TaskStatus, TaskPriority, SubTask, TaskComment } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
 
-const ASSIGNEES = [
+const FALLBACK_ASSIGNEES = [
   { id: "u1", name: "Alex Kumar" },
   { id: "u2", name: "Priya Singh" },
   { id: "u3", name: "Sam Tiwari" },
@@ -22,9 +22,11 @@ interface TaskDetailPanelProps {
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  assignees?: { id: string; name: string }[];
 }
 
-export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assignees }: TaskDetailPanelProps) {
+  const ASSIGNEES = assignees ?? FALLBACK_ASSIGNEES;
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -164,12 +166,19 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete }: Tas
             {/* Assignee */}
             <div className="flex items-center gap-3 py-1.5">
               <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><User className="h-3.5 w-3.5" />Assignee</span>
-              <Select value={task.assignee_id ?? ""} onValueChange={(v) => { const a = ASSIGNEES.find((a) => a.id === v); save({ assignee_id: v || null, assignee_name: a?.name ?? null }); }}>
+              <Select
+                value={task.assignee_id ?? "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__none__") { save({ assignee_id: null, assignee_name: null }); return; }
+                  const a = ASSIGNEES.find((a) => a.id === v);
+                  save({ assignee_id: v, assignee_name: a?.name ?? null });
+                }}
+              >
                 <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
                   <SelectValue placeholder="Unassigned" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Unassigned</SelectItem>
+                  <SelectItem value="__none__">Unassigned</SelectItem>
                   {ASSIGNEES.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                 </SelectContent>
               </Select>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { ArrowLeft, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,20 +11,31 @@ import { AuthLogo } from "@/components/shared/auth-logo";
 import { toast } from "sonner";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
 
-  async function handleReset(e: React.FormEvent) {
+  async function handleSendOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (!email.trim()) { toast.error("Please enter your email"); return; }
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}/auth/callback?next=/auth/reset-password`,
-    });
-    setLoading(false);
-    if (error) toast.error(error.message);
-    else setSent(true);
+    try {
+      const res = await fetch("/api/auth/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), type: "password_reset" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to send code");
+        return;
+      }
+      router.push(`/auth/verify-otp?email=${encodeURIComponent(email.trim().toLowerCase())}&type=password_reset`);
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -32,37 +43,46 @@ export default function ForgotPasswordPage() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 border border-slate-100 dark:border-slate-800 p-8">
         <div className="flex flex-col items-center mb-8">
           <AuthLogo className="mb-6" />
+          <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-950/30 flex items-center justify-center mb-4">
+            <Mail className="h-7 w-7 text-purple-600" />
+          </div>
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Reset password</h2>
           <p className="text-sm text-muted-foreground mt-1 text-center">
-            {sent ? "Check your inbox for the reset link" : "Enter your email and we'll send you a link"}
+            Enter your email and we&apos;ll send a verification code
           </p>
         </div>
 
-        {sent ? (
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mx-auto">
-              <svg className="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        <form onSubmit={handleSendOtp} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="h-11 pl-9"
+              />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Reset link sent to <strong className="text-foreground">{email}</strong>
-            </p>
           </div>
-        ) : (
-          <form onSubmit={handleReset} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-11" />
-            </div>
-            <Button type="submit" className="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-medium" disabled={loading}>
-              {loading && <Loader2 className="animate-spin h-4 w-4" />}
-              Send reset link
-            </Button>
-          </form>
-        )}
+          <Button
+            type="submit"
+            className="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white font-medium"
+            disabled={loading || !email.trim()}
+          >
+            {loading && <Loader2 className="animate-spin h-4 w-4" />}
+            {loading ? "Sending code…" : "Send reset code"}
+          </Button>
+        </form>
 
-        <Link href="/auth/login" className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mt-6">
+        <Link
+          href="/auth/login"
+          className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mt-6"
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
           Back to sign in
         </Link>

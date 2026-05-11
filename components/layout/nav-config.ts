@@ -21,7 +21,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "deals", label: "Deals", href: "/dashboard/deals", icon: "Handshake" },
       { id: "contacts", label: "Contacts", href: "/dashboard/contacts", icon: "Users" },
       { id: "companies", label: "Companies", href: "/dashboard/companies", icon: "Building2" },
-      { id: "actions", label: "Action Items", href: "/dashboard/actions", icon: "CircleCheck", badge: 5 },
+      { id: "actions", label: "Action Items", href: "/dashboard/actions", icon: "CircleCheck" },
     ],
   },
   {

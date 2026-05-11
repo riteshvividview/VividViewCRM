@@ -237,7 +237,7 @@ export function EmailBuilder({ blocks, onChange, showHtmlMode = true }: EmailBui
   }
 
   return (
-    <div className="flex gap-4 h-full">
+    <div className="flex gap-4 h-full overflow-x-auto min-w-0">
       {/* Left: Block palette */}
       <div className="w-44 shrink-0 space-y-1.5">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1 mb-2">Blocks</p>
