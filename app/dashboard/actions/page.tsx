@@ -14,6 +14,7 @@ import { TaskList } from "@/modules/tasks/components/task-list";
 import { TaskDetailPanel } from "@/modules/tasks/components/task-detail-panel";
 import { QuickAddTask } from "@/modules/tasks/components/quick-add-task";
 import { useTasks } from "@/modules/tasks/hooks/use-tasks";
+import { RoleDashboardStrip } from "@/app/dashboard/_components/role-dashboard-strip";
 import type { Task, TaskStatus } from "@/modules/tasks/types";
 import { PRIORITY_CONFIG } from "@/modules/tasks/types";
 import { cn } from "@/lib/utils";
@@ -108,6 +109,7 @@ export default function ActionsPage() {
 
   return (
     <div>
+      <RoleDashboardStrip />
       <PageHeader
         title="Action Items"
         description={`${tasks.length} task${tasks.length !== 1 ? "s" : ""}`}
@@ -124,9 +126,9 @@ export default function ActionsPage() {
       />
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
         {/* Filter chips */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap overflow-x-auto pb-0.5">
           {([
             { id: "all", label: "All" },
             { id: "mine", label: "My Tasks" },
@@ -148,12 +150,12 @@ export default function ActionsPage() {
           ))}
         </div>
 
-        <div className="relative flex-1 min-w-[180px] max-w-xs ml-2">
+        <div className="relative flex-1 min-w-0 sm:min-w-[180px] sm:max-w-xs sm:ml-2">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-9 h-9 text-sm" placeholder="Search tasks…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="sm:ml-auto flex items-center gap-2 flex-wrap">
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
               <span className="text-xs font-medium text-purple-700 dark:text-purple-300">{selectedIds.length} selected</span>

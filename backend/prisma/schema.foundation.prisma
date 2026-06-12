@@ -1,0 +1,259 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// VividCRM — Prisma Schema (Foundation)
+//
+// This is the FOUNDATION schema containing only the models needed for Phase 1
+// (auth, workspace, audit). All business modules (CRM, Tasks, HRMS, Invoice)
+// will add their models in subsequent phases via additive migrations.
+//
+// Full schema reference: about-system/05-database-design/prisma-schema.md
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_DIRECT_URL")
+
+  schemas = ["public", "auth"]
+}
+
+// ══════════════════════════════════
+// ENUMS — Foundation set
+// ══════════════════════════════════
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  HR
+  TEAM_LEAD
+  EMPLOYEE
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SOFT_DELETE
+  RESTORE
+  APPROVE
+  REJECT
+  ESCALATE
+  EXPORT
+  LOGIN
+  LOGOUT
+  ROLE_CHANGE
+  PERMISSION_CHANGE
+  PAYROLL_UNLOCK
+  SALARY_CHANGE
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  BOTH
+}
+
+// ══════════════════════════════════
+// CORE MODELS
+// ══════════════════════════════════
+
+/// Central tenant record — every other entity is scoped to a Workspace.
+model Workspace {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  logoUrl   String?
+  timezone  String  @default("Asia/Kolkata")
+  locale    String  @default("en-IN")
+  currency  String  @default("INR")
+
+  // Business identity (used for invoice generation)
+  businessName    String?
+  gstin           String?
+  pan             String?
+  businessAddress String?
+  businessCity    String?
+  businessState   String?
+  businessPincode String?
+
+  // Feature flags — controlled per workspace for SaaS plan tiers
+  isCrmEnabled     Boolean @default(true)
+  isTasksEnabled   Boolean @default(true)
+  isHrmsEnabled    Boolean @default(true)
+  isInvoiceEnabled Boolean @default(true)
+
+  // SaaS plan identifier
+  plan String @default("INTERNAL")
+
+  // Payroll configuration
+  payrollCycleDay   Int    @default(28)
+  payrollStartMonth String @default("APRIL")
+
+  // Leave year configuration
+  leaveYearStart String @default("APRIL")
+
+  // Invoice configuration
+  defaultPaymentTermsDays Int    @default(30)
+  invoiceNumberPrefix     String @default("INV")
+  nextInvoiceSeq          Int    @default(1)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations (forward declarations — filled as modules are added)
+  users             User[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+
+  @@map("workspaces")
+}
+
+/// System authentication identity.
+/// Every human actor (employee, admin, HR) has a User record.
+/// HRMS-specific data lives in the Employee model (added in Phase 3).
+model User {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  email        String
+  passwordHash String
+  firstName    String
+  lastName     String
+  avatarUrl    String?
+  phone        String?
+
+  role         Role
+  isActive     Boolean @default(true)
+  /// Incremented on role change or logout-all — invalidates all existing JWTs.
+  tokenVersion Int     @default(0)
+
+  lastLoginAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations populated as modules are added
+  auditLogs     AuditLog[]     @relation("AuditActor")
+  notifications Notification[] @relation("NotificationRecipient")
+  notificationPreference NotificationPreference?
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+  @@index([workspaceId, role])
+  @@index([workspaceId, isActive])
+  @@map("users")
+}
+
+// ══════════════════════════════════
+// NOTIFICATIONS (Foundation)
+// ══════════════════════════════════
+
+/// Persisted notification record.
+/// Delivered in real-time via Socket.IO and async via BullMQ email queue.
+model Notification {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  recipientId String
+  recipient   User   @relation("NotificationRecipient", fields: [recipientId], references: [id])
+
+  type  String // e.g. TASK_ASSIGNED, LEAVE_APPROVED, PAYSLIP_READY
+  title String
+  body  String
+
+  // Deep link (used by frontend to navigate to the relevant resource)
+  module       String? // CRM | TASKS | HRMS | INVOICE | SYSTEM
+  resourceType String? // lead | task | leave_application | invoice
+  resourceId   String?
+
+  channel NotificationChannel @default(BOTH)
+
+  isRead  Boolean   @default(false)
+  readAt  DateTime?
+
+  emailSentAt    DateTime?
+  emailDelivered Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([recipientId])
+  @@index([recipientId, isRead])
+  @@index([recipientId, createdAt])
+  @@map("notifications")
+}
+
+/// Per-user notification channel preferences.
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  /// JSON map: { "TASK_ASSIGNED": { "inApp": true, "email": true }, ... }
+  preferences Json @default("{}")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+// ══════════════════════════════════
+// AUDIT LOG (Foundation)
+// ══════════════════════════════════
+
+/// Immutable audit trail — one row per mutation event.
+/// Protected at DB level: the application DB user (vividcrm_app) has
+/// INSERT only on this table — no UPDATE or DELETE allowed.
+/// See: about-system/05-database-design/audit-strategy.md
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  action AuditAction
+
+  // Actor (nullable for system-initiated actions)
+  actorId    String?
+  actor      User?   @relation("AuditActor", fields: [actorId], references: [id])
+  actorRole  Role?
+  /// Snapshot of actor email — preserved even if user is later deleted/anonymised
+  actorEmail String
+
+  // Subject (plain strings, not FKs — audit log outlives the records it describes)
+  module     String // CRM | TASKS | HRMS | INVOICE | SYSTEM
+  entityType String // Lead | Deal | Employee | PayrollRun …
+  entityId   String // PK of the affected record
+
+  // Change capture (JSON snapshots of record state)
+  before Json? // record state before mutation
+  after  Json? // record state after mutation
+
+  // Context
+  reason      String? // mandatory for sensitive overrides (PAYROLL_UNLOCK etc.)
+  isSensitive Boolean @default(false)
+
+  // Request metadata
+  ipAddress String?
+  userAgent String?
+  sessionId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([workspaceId, entityType, entityId])
+  @@index([workspaceId, actorId])
+  @@index([workspaceId, action])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, isSensitive])
+  @@map("audit_logs")
+}

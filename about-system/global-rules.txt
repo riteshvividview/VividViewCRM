@@ -1,0 +1,207 @@
+# GLOBAL IMPLEMENTATION RULES
+
+Read this entire instruction before doing anything.
+
+## Source of Truth Hierarchy
+
+Priority Order:
+
+1. about-system/00-supabase-state/
+2. about-system/*
+3. Existing source code
+4. Existing Prisma schema
+5. Existing Supabase database
+
+Never make assumptions if information exists in the documentation.
+
+---
+
+## Supabase State
+
+Before planning, designing, generating code, creating migrations, modifying Prisma, or creating new modules:
+
+Read ALL files inside:
+
+about-system/00-supabase-state/
+
+Files include:
+
+* schemas.md
+* tables.md
+* columns.md
+* primary-keys.md
+* foreign-keys.md
+* indexes.md
+* views.md
+* postgreSQL-enums.md
+* functions.md
+* triggers.md
+* rls-enabled-tables.md
+* rls-policies.md
+* storage-buckets.md
+* extensions.md
+* record-counts.md
+* prisma-relevant-relationship-export.md
+
+Treat these files as the current production database state.
+
+Do not ignore them.
+
+---
+
+## Existing Database Rules
+
+The database is NOT empty.
+
+Supabase already contains a production CRM system.
+
+The current database contains existing CRM entities.
+
+Never create duplicate functionality.
+
+Always check whether an existing table can be extended before proposing a new table.
+
+Before creating a new table:
+
+1. Check tables.md
+2. Check columns.md
+3. Check foreign-keys.md
+4. Check prisma-relevant-relationship-export.md
+
+Then justify why a new table is required.
+
+---
+
+## Prisma Rules
+
+Current prisma/schema.prisma is the source of truth.
+
+DO NOT:
+
+* run prisma db pull
+* run prisma db push
+* run prisma migrate reset
+* regenerate schema
+
+Only modify Prisma when explicitly instructed.
+
+Always compare proposed schema changes against:
+
+about-system/00-supabase-state/
+
+before making modifications.
+
+---
+
+## Migration Rules
+
+When database changes are required:
+
+Generate SQL migration scripts.
+
+Do NOT execute them.
+
+Do NOT assume they have already been run.
+
+Every migration must contain:
+
+* purpose
+* affected tables
+* rollback strategy
+* indexes
+* foreign keys
+* RLS impact
+
+---
+
+## Architecture Rules
+
+All implementations must be:
+
+* Enterprise Grade
+* Multi Tenant
+* Workspace Aware
+* RBAC Enabled
+* Audit Ready
+* Mobile First
+* Responsive
+
+Design order:
+
+1. Mobile
+2. Tablet
+3. Desktop
+
+Never design desktop-first.
+
+---
+
+## Existing Product Scope
+
+Existing CRM:
+
+* Leads
+* Deals
+* Contacts
+* Campaigns
+* Documents
+* Teams
+* Calendar
+* Tasks
+* Notifications
+
+Planned Modules:
+
+* Task Management (Bordio Style)
+* HRMS (Keka Style)
+* Invoice Management
+
+Always integrate new modules with existing CRM entities.
+
+---
+
+## Reuse First Policy
+
+Before creating:
+
+* tables
+* services
+* APIs
+* DTOs
+* repositories
+* UI components
+
+Check whether similar functionality already exists.
+
+Prefer extension over duplication.
+
+---
+
+## Response Format
+
+For every implementation prompt, respond ONLY with:
+
+1. What has been implemented
+2. Anything I need to do or setup (step-by-step)
+3. Current overall project completion percentage
+4. Files added or modified inside about-system
+
+Do not provide unnecessary explanations.
+
+Do not output large code blocks unless explicitly requested.
+
+---
+
+## Validation Requirement
+
+Before finalizing any implementation:
+
+Verify:
+
+* Existing schema compatibility
+* Existing Prisma compatibility
+* Existing CRM compatibility
+* Existing RLS compatibility
+* Existing Workspace isolation compatibility
+
+Nothing should break existing CRM functionality.

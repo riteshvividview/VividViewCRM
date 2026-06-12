@@ -1,3 +1,6 @@
+import type { UserRole } from "@/types";
+import { MODULES, type ModuleId } from "@/lib/rbac/modules";
+
 export type NavGroup = {
   id: string;
   label: string;
@@ -12,44 +15,33 @@ export type NavItem = {
   badge?: number;
 };
 
-export const NAV_GROUPS: NavGroup[] = [
-  {
-    id: "sales",
-    label: "Sales",
-    items: [
-      { id: "leads", label: "Leads", href: "/dashboard/leads", icon: "UserRoundSearch" },
-      { id: "deals", label: "Deals", href: "/dashboard/deals", icon: "Handshake" },
-      { id: "contacts", label: "Contacts", href: "/dashboard/contacts", icon: "Users" },
-      { id: "companies", label: "Companies", href: "/dashboard/companies", icon: "Building2" },
-      { id: "actions", label: "Action Items", href: "/dashboard/actions", icon: "CircleCheck" },
-    ],
-  },
-  {
-    id: "communication",
-    label: "Communication",
-    items: [
-      { id: "mailing", label: "Bulk Mailing", href: "/dashboard/mailing", icon: "Mail" },
-      { id: "campaigns", label: "Marketing Campaigns", href: "/dashboard/campaigns", icon: "Megaphone" },
-    ],
-  },
-  {
-    id: "management",
-    label: "Management",
-    items: [
-      { id: "calendar", label: "Sales Calendar", href: "/dashboard/calendar", icon: "CalendarDays" },
-      { id: "teams", label: "Teams & Targets", href: "/dashboard/teams", icon: "Target" },
-      { id: "products", label: "Products", href: "/dashboard/products", icon: "Package" },
-      { id: "documents", label: "Documents", href: "/dashboard/documents", icon: "FileText" },
-    ],
-  },
-  {
-    id: "analytics",
-    label: "Analytics & Setup",
-    items: [
-      { id: "reports", label: "Reports", href: "/dashboard/reports", icon: "BarChart3" },
-      { id: "integrations", label: "Integrations", href: "/dashboard/integrations", icon: "Puzzle" },
-      { id: "email-settings", label: "Email Settings", href: "/dashboard/email-settings", icon: "Settings2" },
-      { id: "settings", label: "Settings", href: "/dashboard/settings", icon: "Settings" },
-    ],
-  },
-];
+// Build nav dynamically from the module registry filtered by the user's effective modules.
+// Role-specific labels (e.g. "My Attendance" for employee) are applied here.
+export function getNavGroups(allowedModules: Set<ModuleId>, role: UserRole): NavGroup[] {
+  const groupMap = new Map<string, NavGroup>();
+
+  for (const mod of MODULES) {
+    if (!allowedModules.has(mod.id)) continue;
+
+    let group = groupMap.get(mod.nav.groupId);
+    if (!group) {
+      group = { id: mod.nav.groupId, label: mod.nav.groupLabel, items: [] };
+      groupMap.set(mod.nav.groupId, group);
+    }
+
+    for (const item of mod.nav.items) {
+      if (group.items.some((i) => i.id === item.id)) continue; // dedup
+      const label = item.roleLabels?.[role] ?? item.label;
+      group.items.push({ id: item.id, href: item.href, icon: item.icon, label });
+    }
+  }
+
+  // Account link always shown last
+  groupMap.set("account", {
+    id: "account",
+    label: "Account",
+    items: [{ id: "profile", href: "/dashboard/profile", icon: "UserRound", label: "My Profile" }],
+  });
+
+  return Array.from(groupMap.values()).filter((g) => g.items.length > 0);
+}

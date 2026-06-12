@@ -1,0 +1,3 @@
+| id      | name    | owner | created_at                    | updated_at                    | public | avif_autodetection | file_size_limit | allowed_mime_types                                  | owner_id | type     |
+| ------- | ------- | ----- | ----------------------------- | ----------------------------- | ------ | ------------------ | --------------- | --------------------------------------------------- | -------- | -------- |
+| avatars | avatars | null  | 2026-05-09 10:39:56.071718+00 | 2026-05-09 10:39:56.071718+00 | true   | false              | 2097152         | ["image/jpeg","image/png","image/webp","image/gif"] | null     | STANDARD |

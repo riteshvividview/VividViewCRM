@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Lead, LeadStatus } from "../types";
 import { calcScore } from "../types";
+import { leadsApi } from "@/lib/api-client";
 
-// Rich mock data for dev mode
+// ── Mock data — used when NestJS backend is unreachable (offline / dev without backend) ──
 export const MOCK_LEADS: Lead[] = [
   { id: "1", name: "Sarah Chen", email: "sarah@techflow.com", phone: "+91 98765 43210", company: "TechFlow Inc", company_id: null, source: "Referral", status: "Qualified", score: 85, assigned_to: "u1", assigned_name: "Alex Kumar", custom_fields: null, notes: null, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T10:00:00Z", workspace_id: null },
   { id: "2", name: "Marcus Webb", email: "m.webb@nexus.io", phone: "+91 87654 32109", company: "Nexus Digital", company_id: null, source: "Website", status: "Contacted", score: 60, assigned_to: "u2", assigned_name: "Priya Singh", custom_fields: null, notes: null, created_at: "2026-05-02T09:00:00Z", updated_at: "2026-05-02T09:00:00Z", workspace_id: null },
@@ -16,6 +17,8 @@ export const MOCK_LEADS: Lead[] = [
   { id: "8", name: "Rajan Mehta", email: "rajan@innotech.com", phone: "+91 32109 87654", company: "InnoTech Solutions", company_id: null, source: "Referral", status: "New", score: 45, assigned_to: "u2", assigned_name: "Priya Singh", custom_fields: null, notes: null, created_at: "2026-05-07T12:00:00Z", updated_at: "2026-05-07T12:00:00Z", workspace_id: null },
 ];
 
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,22 +26,12 @@ export function useLeads() {
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const supabaseUrl = typeof window !== "undefined" ? process.env.NEXT_PUBLIC_SUPABASE_URL : null;
-      if (!supabaseUrl) {
-        await new Promise((r) => setTimeout(r, 400));
-        setLeads(MOCK_LEADS);
-        return;
-      }
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data, error: err } = await supabase
-        .from("leads")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (err) throw err;
-      setLeads(data ?? []);
+      const result = await leadsApi.list({ limit: 200 }) as { items: Lead[] };
+      setLeads(result.items ?? []);
     } catch (e) {
+      console.warn("[useLeads] NestJS API unavailable, falling back to mock data:", e);
       setError(e instanceof Error ? e.message : "Failed to load leads");
       setLeads(MOCK_LEADS);
     } finally {
@@ -48,38 +41,53 @@ export function useLeads() {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
+  // Optimistic status update — reverts on API failure
   const updateLeadStatus = useCallback(async (id: string, status: LeadStatus) => {
+    const snapshot = leads;
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status, score: calcScore({ ...l, status }) } : l));
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("leads").update({ status }).eq("id", id);
-  }, []);
+    try {
+      await leadsApi.update(id, { status });
+    } catch (e) {
+      console.error("[useLeads] updateLeadStatus failed, reverting:", e);
+      setLeads(snapshot);
+    }
+  }, [leads]);
 
+  // Optimistic field update
   const updateLead = useCallback(async (id: string, updates: Partial<Lead>) => {
+    const snapshot = leads;
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...updates } : l));
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("leads").update(updates).eq("id", id);
-  }, []);
+    try {
+      await leadsApi.update(id, updates);
+    } catch (e) {
+      console.error("[useLeads] updateLead failed, reverting:", e);
+      setLeads(snapshot);
+    }
+  }, [leads]);
 
+  // Optimistic add — temp ID replaced with server-assigned ID on success
   const addLead = useCallback(async (lead: Omit<Lead, "id" | "created_at" | "updated_at">) => {
-    const newLead: Lead = {
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Lead = {
       ...lead,
-      id: crypto.randomUUID(),
+      id: tempId,
       score: calcScore(lead),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setLeads((prev) => [newLead, ...prev]);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) return newLead;
-    const { createClient } = await import("@/lib/supabase/client");
-    const { data } = await createClient().from("leads").insert([newLead]).select().single();
-    return data ?? newLead;
+    setLeads((prev) => [optimistic, ...prev]);
+    try {
+      const created = await leadsApi.create(lead) as Lead;
+      setLeads((prev) => prev.map((l) => l.id === tempId ? created : l));
+      return created;
+    } catch (e) {
+      console.error("[useLeads] addLead failed, removing optimistic row:", e);
+      setLeads((prev) => prev.filter((l) => l.id !== tempId));
+      return optimistic;
+    }
   }, []);
 
+  // Bulk add — parallel creates, falls back to full refresh on failure
   const bulkAddLeads = useCallback(async (rows: Partial<Lead>[]) => {
     const newLeads = rows.map((r) => ({
       ...r,
@@ -89,20 +97,29 @@ export function useLeads() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })) as Lead[];
-    setLeads((prev) => [...newLeads, ...prev]);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("leads").insert(newLeads);
-  }, []);
 
+    setLeads((prev) => [...newLeads, ...prev]);
+    try {
+      await Promise.all(newLeads.map((l) => leadsApi.create(l)));
+      // Refresh to get authoritative server-assigned IDs
+      await fetchLeads();
+    } catch (e) {
+      console.error("[useLeads] bulkAddLeads partially failed:", e);
+      await fetchLeads();
+    }
+  }, [fetchLeads]);
+
+  // Optimistic delete
   const deleteLead = useCallback(async (id: string) => {
+    const snapshot = leads;
     setLeads((prev) => prev.filter((l) => l.id !== id));
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!supabaseUrl) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("leads").delete().eq("id", id);
-  }, []);
+    try {
+      await leadsApi.delete(id);
+    } catch (e) {
+      console.error("[useLeads] deleteLead failed, reverting:", e);
+      setLeads(snapshot);
+    }
+  }, [leads]);
 
   return { leads, loading, error, fetchLeads, updateLeadStatus, updateLead, addLead, bulkAddLeads, deleteLead, setLeads };
 }

@@ -14,8 +14,11 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Profile } from "@/types";
-import { NAV_GROUPS } from "./nav-config";
+import type { Profile, UserRole } from "@/types";
+import { getNavGroups } from "./nav-config";
+import { useAllowedModuleIds } from "@/lib/supabase/profile-context";
+import type { ModuleId } from "@/lib/rbac/modules";
+import { useMemo } from "react";
 import Link from "next/link";
 
 interface TopbarProps {
@@ -23,15 +26,23 @@ interface TopbarProps {
   onMenuOpen?: () => void;
 }
 
-function useBreadcrumb() {
+function useBreadcrumb(role: UserRole, allowedModuleIds: ModuleId[]) {
   const pathname = usePathname();
+  const allowedSet = useMemo(() => new Set<ModuleId>(allowedModuleIds), [allowedModuleIds]);
+  const navItems = useMemo(
+    () => getNavGroups(allowedSet, role).flatMap((g) => g.items),
+    [allowedSet, role]
+  );
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: { label: string; href: string }[] = [];
   let path = "";
   for (const seg of segments) {
     path += "/" + seg;
-    const navItem = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.href === path);
-    crumbs.push({ label: navItem?.label ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "), href: path });
+    const navItem = navItems.find((i) => i.href === path);
+    crumbs.push({
+      label: navItem?.label ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "),
+      href: path,
+    });
   }
   return crumbs;
 }
@@ -40,7 +51,8 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const crumbs = useBreadcrumb();
+  const allowedModuleIds = useAllowedModuleIds();
+  const crumbs = useBreadcrumb((profile?.role ?? "employee") as UserRole, allowedModuleIds);
 
   useEffect(() => setMounted(true), []);
 

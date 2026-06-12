@@ -1,7 +1,10 @@
 "use client";
+
 import { useCallback, useEffect, useState } from "react";
 import type { Contact, ContactActivity, ContactFile } from "../types";
+import { contactsApi } from "@/lib/api-client";
 
+// ── Mock data ─────────────────────────────────────────────────────────────────
 export const MOCK_CONTACTS: Contact[] = [
   { id: "c1", full_name: "Sarah Chen", email: "sarah@techflow.com", phone: "+91 98765 43210", title: "CTO", company_id: "co1", company_name: "TechFlow Inc", avatar_url: null, status: "Active", tags: ["VIP", "Decision Maker"], owner: "u1", owner_name: "Alex Kumar", last_activity_at: "2026-05-07T14:00:00Z", custom_fields: [], notes_content: null, workspace_id: null, created_at: "2026-04-01T10:00:00Z", updated_at: "2026-05-07T14:00:00Z" },
   { id: "c2", full_name: "Marcus Webb", email: "m.webb@nexus.io", phone: "+91 87654 32109", title: "VP Sales", company_id: "co2", company_name: "Nexus Digital", avatar_url: null, status: "Active", tags: ["Partner"], owner: "u2", owner_name: "Priya Singh", last_activity_at: "2026-05-06T11:00:00Z", custom_fields: [], notes_content: null, workspace_id: null, created_at: "2026-04-05T10:00:00Z", updated_at: "2026-05-06T11:00:00Z" },
@@ -20,6 +23,64 @@ export const MOCK_ACTIVITIES: ContactActivity[] = [
   { id: "a5", contact_id: "c1", type: "deal", content: "Added to deal: Enterprise License – TechFlow", created_by: "System", created_at: "2026-05-01T10:00:00Z" },
 ];
 
+// ── Field mapping ─────────────────────────────────────────────────────────────
+// DB schema:  full_name, email, phone, company (string), role, avatar_url, status, notes
+// Frontend:   full_name, email, phone, company_name,     title, avatar_url, status, notes_content
+// The NestJS API uses DB field names — we map on the way in and out.
+
+type ApiContact = {
+  id: string;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;  // DB field name
+  role?: string | null;     // DB field name (maps to frontend "title")
+  avatar_url?: string | null;
+  status?: string | null;
+  notes?: string | null;    // DB field name (maps to frontend "notes_content")
+  workspace_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+function apiToContact(c: ApiContact): Contact {
+  return {
+    id: c.id,
+    full_name: c.full_name,
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+    title: c.role ?? null,             // DB: role → frontend: title
+    company_id: null,
+    company_name: c.company ?? null,    // DB: company → frontend: company_name
+    avatar_url: c.avatar_url ?? null,
+    status: (c.status as Contact["status"]) ?? "Active",
+    tags: [],
+    owner: null,
+    owner_name: null,
+    last_activity_at: c.updated_at ?? c.created_at ?? new Date().toISOString(),
+    custom_fields: [],
+    notes_content: c.notes ?? null,    // DB: notes → frontend: notes_content
+    workspace_id: c.workspace_id ?? null,
+    created_at: c.created_at ?? new Date().toISOString(),
+    updated_at: c.updated_at ?? c.created_at ?? new Date().toISOString(),
+  };
+}
+
+function contactToApi(c: Partial<Contact>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (c.full_name !== undefined) payload["full_name"] = c.full_name;
+  if (c.email !== undefined)     payload["email"]     = c.email;
+  if (c.phone !== undefined)     payload["phone"]     = c.phone;
+  if (c.title !== undefined)     payload["role"]      = c.title;        // frontend: title → DB: role
+  if (c.company_name !== undefined) payload["company"] = c.company_name; // frontend: company_name → DB: company
+  if (c.avatar_url !== undefined)   payload["avatar_url"] = c.avatar_url;
+  if (c.status !== undefined)    payload["status"]    = c.status;
+  if (c.notes_content !== undefined) payload["notes"] = c.notes_content; // frontend: notes_content → DB: notes
+  return payload;
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,41 +88,59 @@ export function useContacts() {
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!url) { await new Promise((r) => setTimeout(r, 400)); setContacts(MOCK_CONTACTS); return; }
-      const { createClient } = await import("@/lib/supabase/client");
-      const { data } = await createClient().from("contacts").select("*").order("created_at", { ascending: false });
-      setContacts(data ?? []);
-    } finally { setLoading(false); }
+      const result = await contactsApi.list({ limit: "200" }) as { items: ApiContact[] };
+      setContacts((result.items ?? []).map(apiToContact));
+    } catch (e) {
+      console.warn("[useContacts] NestJS API unavailable, falling back to mock data:", e);
+      setContacts(MOCK_CONTACTS);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   const addContact = useCallback(async (c: Omit<Contact, "id" | "created_at" | "updated_at">) => {
-    const n: Contact = { ...c, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-    setContacts((p) => [n, ...p]);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url) return n;
-    const { createClient } = await import("@/lib/supabase/client");
-    const { data } = await createClient().from("contacts").insert([n]).select().single();
-    return data ?? n;
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Contact = {
+      ...c,
+      id: tempId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setContacts((prev) => [optimistic, ...prev]);
+    try {
+      const created = await contactsApi.create(contactToApi(c)) as ApiContact;
+      setContacts((prev) => prev.map((x) => x.id === tempId ? apiToContact(created) : x));
+      return apiToContact(created);
+    } catch (e) {
+      console.error("[useContacts] addContact failed, removing optimistic row:", e);
+      setContacts((prev) => prev.filter((x) => x.id !== tempId));
+      return optimistic;
+    }
   }, []);
 
   const updateContact = useCallback(async (id: string, updates: Partial<Contact>) => {
-    setContacts((p) => p.map((c) => c.id === id ? { ...c, ...updates } : c));
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("contacts").update(updates).eq("id", id);
-  }, []);
+    const snapshot = contacts;
+    setContacts((prev) => prev.map((c) => c.id === id ? { ...c, ...updates } : c));
+    try {
+      await contactsApi.update(id, contactToApi(updates));
+    } catch (e) {
+      console.error("[useContacts] updateContact failed, reverting:", e);
+      setContacts(snapshot);
+    }
+  }, [contacts]);
 
   const deleteContact = useCallback(async (id: string) => {
-    setContacts((p) => p.filter((c) => c.id !== id));
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url) return;
-    const { createClient } = await import("@/lib/supabase/client");
-    await createClient().from("contacts").delete().eq("id", id);
-  }, []);
+    const snapshot = contacts;
+    setContacts((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await contactsApi.delete(id);
+    } catch (e) {
+      console.error("[useContacts] deleteContact failed, reverting:", e);
+      setContacts(snapshot);
+    }
+  }, [contacts]);
 
   return { contacts, loading, fetchContacts, addContact, updateContact, deleteContact, setContacts };
 }

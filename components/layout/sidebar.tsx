@@ -7,19 +7,26 @@ import {
   UserRoundSearch, Handshake, Users, Building2, CircleCheck,
   Inbox, PhoneCall, Mail, Megaphone, CalendarDays, Target,
   Package, FileText, BarChart3, Puzzle, Settings2, Settings,
-  ChevronLeft, ChevronRight, Home,
+  ChevronLeft, ChevronRight, Home, ShieldCheck, UserRound,
+  Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_GROUPS, type NavItem } from "./nav-config";
+import { getNavGroups, type NavItem } from "./nav-config";
+import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
+import type { UserRole } from "@/types";
+import type { ModuleId } from "@/lib/rbac/modules";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { useMemo } from "react";
 import { usePendingTaskCount } from "@/modules/tasks/hooks/use-pending-task-count";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   UserRoundSearch, Handshake, Users, Building2, CircleCheck,
   Inbox, PhoneCall, Mail, Megaphone, CalendarDays, Target,
   Package, FileText, BarChart3, Puzzle, Settings2, Settings, Home,
+  ShieldCheck, UserRound, Clock, CalendarOff, Banknote, LayoutDashboard,
+  Receipt, FilePlus,
 };
 
 interface SidebarProps {
@@ -27,9 +34,12 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-function NavItemRow({ item, collapsed, active, dynamicBadge }: { item: NavItem; collapsed: boolean; active: boolean; dynamicBadge?: number }) {
+function NavItemRow({
+  item, collapsed, active, badge,
+}: {
+  item: NavItem; collapsed: boolean; active: boolean; badge?: number;
+}) {
   const Icon = ICON_MAP[item.icon] ?? Home;
-  const badge = dynamicBadge ?? item.badge;
 
   const inner = (
     <Link
@@ -45,7 +55,10 @@ function NavItemRow({ item, collapsed, active, dynamicBadge }: { item: NavItem; 
       {active && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-purple-700 rounded-r-full" />
       )}
-      <Icon className={cn("shrink-0 h-4 w-4", active ? "text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300")} />
+      <Icon className={cn(
+        "shrink-0 h-4 w-4",
+        active ? "text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+      )} />
       {!collapsed && (
         <>
           <span className="flex-1 truncate">{item.label}</span>
@@ -75,7 +88,21 @@ function NavItemRow({ item, collapsed, active, dynamicBadge }: { item: NavItem; 
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const profile = useShellProfile();
+  const allowedModuleIds = useAllowedModuleIds();
   const pendingTaskCount = usePendingTaskCount();
+
+  const role = (profile?.role ?? "employee") as UserRole;
+  const hasTasks = allowedModuleIds.includes("tasks" as ModuleId);
+
+  const allowedSet = useMemo(
+    () => new Set<ModuleId>(allowedModuleIds),
+    [allowedModuleIds]
+  );
+  const navGroups = useMemo(
+    () => getNavGroups(allowedSet, role),
+    [allowedSet, role]
+  );
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -86,7 +113,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         )}
       >
         {/* Logo */}
-        <div className={cn("flex items-center h-14 px-4 border-b border-sidebar-border shrink-0 gap-3", collapsed && "justify-center px-2")}>
+        <div className={cn(
+          "flex items-center h-14 px-4 border-b border-sidebar-border shrink-0 gap-3",
+          collapsed && "justify-center px-2"
+        )}>
           <div className="relative w-8 h-8 shrink-0 rounded-lg bg-gradient-to-br from-purple-600 to-violet-700 p-1">
             <Image src="/vividviewlogo.png" alt="Vivid View" fill sizes="32px" className="object-contain brightness-0 invert p-0.5" priority />
           </div>
@@ -100,7 +130,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
-          {NAV_GROUPS.map((group, gi) => (
+          {navGroups.map((group, gi) => (
             <div key={group.id}>
               {gi > 0 && <Separator className="my-2 mx-1" />}
               {!collapsed && (
@@ -114,7 +144,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   item={item}
                   collapsed={collapsed}
                   active={pathname === item.href || pathname.startsWith(item.href + "/")}
-                  dynamicBadge={item.id === "actions" ? (pendingTaskCount > 0 ? pendingTaskCount : undefined) : undefined}
+                  badge={
+                    item.id === "actions" && hasTasks && pendingTaskCount > 0
+                      ? pendingTaskCount
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -130,7 +164,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               collapsed && "justify-center px-2"
             )}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <><ChevronLeft className="h-4 w-4" /><span>Collapse</span></>}
+            {collapsed
+              ? <ChevronRight className="h-4 w-4" />
+              : <><ChevronLeft className="h-4 w-4" /><span>Collapse</span></>
+            }
           </button>
         </div>
       </aside>

@@ -1,0 +1,115 @@
+Existing System (Keep)
+
+Current modules:
+
+CRM
+├── Leads
+├── Deals
+├── Contacts
+├── Companies
+├── Campaigns
+├── Reports
+├── Mailing
+├── Documents
+├── Teams
+├── Calendar
+
+These are already present.
+
+New Systems Needed
+Module 1 — Task Management (Bordio)
+Tasks
+├── Projects
+├── Boards
+├── Tasks
+├── Subtasks
+├── Comments
+├── Mentions
+├── Activity Logs
+├── Time Tracking
+├── Recurring Tasks
+├── Team Assignment
+├── Calendar Sync
+├── Sprint Management
+└── Notifications
+Module 2 — HRMS (Keka Style)
+HRMS
+├── Employees
+├── Departments
+├── Attendance
+├── Leave Management
+├── Holidays
+├── Shift Management
+├── Payroll
+├── Employee Documents
+├── Performance Reviews
+├── Onboarding
+├── Exit Management
+└── Approval Workflows
+Module 3 — Invoice System
+Invoice
+├── Create Invoice
+├── Invoice Templates
+├── GST Calculation
+├── Invoice PDF
+├── Client Billing
+├── Invoice Status
+├── Payment Tracking
+├── Revenue Reports
+└── Invoice History
+Roles
+
+You mentioned:
+
+Admin
+Team Lead
+Employee
+HR
+
+Good.
+
+I would implement:
+
+SUPER_ADMIN
+ADMIN
+HR
+TEAM_LEAD
+EMPLOYEE
+
+Because later you will need:
+
+system settings
+module permissions
+workspace management
+
+which should belong to SUPER_ADMIN.
+
+Technology Stack I Recommend
+
+Since you're already in Next.js:
+
+Frontend
+Next.js 15
+TypeScript
+Tailwind
+Shadcn UI
+TanStack Query
+Backend
+NestJS
+Prisma
+PostgreSQL
+Redis
+BullMQ
+Socket.IO
+Storage
+Cloudflare R2
+
+or
+
+AWS S3
+Database
+PostgreSQL
+
+not Supabase as the primary backend service.
+
+You can still host PostgreSQL on Supabase if desired.

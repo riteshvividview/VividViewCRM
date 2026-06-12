@@ -1,23 +1,24 @@
 "use client";
 import { useEffect, useState } from "react";
 import { MOCK_TASKS } from "./use-tasks";
+import { api } from "@/lib/api-client";
 
 export function usePendingTaskCount(): number {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     async function load() {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!url) {
+      try {
+        // Use the NestJS count endpoint (status filter excludes done/cancelled)
+        const result = await api.get<{ total: number }>("/tasks", {
+          status: "todo,in_progress,in_review,blocked,waiting",
+          limit: 1,
+        });
+        setCount((result as { total: number }).total ?? 0);
+      } catch {
+        // Fallback: count from mock data
         setCount(MOCK_TASKS.filter((t) => t.status !== "done").length);
-        return;
       }
-      const { createClient } = await import("@/lib/supabase/client");
-      const { count: c } = await createClient()
-        .from("tasks")
-        .select("*", { count: "exact", head: true })
-        .neq("status", "done");
-      setCount(c ?? 0);
     }
     load();
   }, []);

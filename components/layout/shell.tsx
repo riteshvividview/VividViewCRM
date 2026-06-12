@@ -4,15 +4,18 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { ProfileProvider } from "@/lib/supabase/profile-context";
+import { OfflineScreen } from "@/components/shared/offline-screen";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types";
+import type { ModuleId } from "@/lib/rbac/modules";
 
 interface ShellProps {
   children: React.ReactNode;
   profile: Profile | null;
+  allowedModuleIds: ModuleId[];
 }
 
-export function Shell({ children, profile }: ShellProps) {
+export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -29,7 +32,8 @@ export function Shell({ children, profile }: ShellProps) {
   }
 
   return (
-    <ProfileProvider profile={profile}>
+    <ProfileProvider profile={profile} allowedModuleIds={allowedModuleIds}>
+      <OfflineScreen />
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop sidebar */}
         <div className="hidden md:flex">
@@ -50,7 +54,9 @@ export function Shell({ children, profile }: ShellProps) {
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Topbar profile={profile} onMenuOpen={() => setMobileOpen(true)} />
           <main className="flex-1 overflow-y-auto scrollbar-thin">
-            <div className="animate-fade-in p-3 sm:p-6 max-w-screen-2xl mx-auto">{children}</div>
+            <div className={cn("animate-fade-in p-3 sm:p-6 max-w-screen-2xl mx-auto")}>
+              {children}
+            </div>
           </main>
         </div>
       </div>

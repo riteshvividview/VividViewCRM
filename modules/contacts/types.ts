@@ -45,7 +45,7 @@ export interface Contact {
   owner_name: string | null;
   last_activity_at: string | null;
   custom_fields: CustomField[];
-  notes_content: Record<string, unknown> | null;
+  notes_content: string | null;
   workspace_id: string | null;
   created_at: string;
   updated_at: string;

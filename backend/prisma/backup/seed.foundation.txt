@@ -1,0 +1,137 @@
+/**
+ * Database seed for local development.
+ * Creates a default workspace, SUPER_ADMIN user, and sample ADMIN user.
+ *
+ * Run: pnpm prisma:seed
+ *
+ * DO NOT run against staging or production.
+ */
+
+import { PrismaClient, Role } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+
+async function main(): Promise<void> {
+  console.log('🌱 Seeding database...');
+
+  // ── Workspace ────────────────────────────────────────────────────────────
+  const workspace = await prisma.workspace.upsert({
+    where: { slug: 'vividview-dev' },
+    update: {},
+    create: {
+      name: 'VividView (Dev)',
+      slug: 'vividview-dev',
+      timezone: 'Asia/Kolkata',
+      locale: 'en-IN',
+      currency: 'INR',
+      businessName: 'VividView Digital Pvt Ltd',
+      gstin: '27AABCV1234F1Z5',
+      businessState: 'Maharashtra',
+      plan: 'INTERNAL',
+    },
+  });
+  console.log(`✅ Workspace: ${workspace.name} (${workspace.id})`);
+
+  // ── SUPER_ADMIN ──────────────────────────────────────────────────────────
+  const superAdminHash = await bcrypt.hash('SuperAdmin@123', 12);
+  const superAdmin = await prisma.user.upsert({
+    where: { workspaceId_email: { workspaceId: workspace.id, email: 'superadmin@vividcrm.dev' } },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'superadmin@vividcrm.dev',
+      passwordHash: superAdminHash,
+      firstName: 'Super',
+      lastName: 'Admin',
+      role: Role.SUPER_ADMIN,
+      isActive: true,
+    },
+  });
+  console.log(`✅ SUPER_ADMIN: ${superAdmin.email}`);
+
+  // ── ADMIN ────────────────────────────────────────────────────────────────
+  const adminHash = await bcrypt.hash('Admin@123456', 12);
+  const admin = await prisma.user.upsert({
+    where: { workspaceId_email: { workspaceId: workspace.id, email: 'admin@vividcrm.dev' } },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'admin@vividcrm.dev',
+      passwordHash: adminHash,
+      firstName: 'Admin',
+      lastName: 'User',
+      role: Role.ADMIN,
+      isActive: true,
+    },
+  });
+  console.log(`✅ ADMIN: ${admin.email}`);
+
+  // ── HR ───────────────────────────────────────────────────────────────────
+  const hrHash = await bcrypt.hash('Hr@1234567890', 12);
+  const hrUser = await prisma.user.upsert({
+    where: { workspaceId_email: { workspaceId: workspace.id, email: 'hr@vividcrm.dev' } },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'hr@vividcrm.dev',
+      passwordHash: hrHash,
+      firstName: 'Neha',
+      lastName: 'HR',
+      role: Role.HR,
+      isActive: true,
+    },
+  });
+  console.log(`✅ HR: ${hrUser.email}`);
+
+  // ── TEAM_LEAD ────────────────────────────────────────────────────────────
+  const tlHash = await bcrypt.hash('TeamLead@123', 12);
+  const teamLead = await prisma.user.upsert({
+    where: { workspaceId_email: { workspaceId: workspace.id, email: 'teamlead@vividcrm.dev' } },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'teamlead@vividcrm.dev',
+      passwordHash: tlHash,
+      firstName: 'Priya',
+      lastName: 'Lead',
+      role: Role.TEAM_LEAD,
+      isActive: true,
+    },
+  });
+  console.log(`✅ TEAM_LEAD: ${teamLead.email}`);
+
+  // ── EMPLOYEE ─────────────────────────────────────────────────────────────
+  const empHash = await bcrypt.hash('Employee@123', 12);
+  const employee = await prisma.user.upsert({
+    where: { workspaceId_email: { workspaceId: workspace.id, email: 'employee@vividcrm.dev' } },
+    update: {},
+    create: {
+      workspaceId: workspace.id,
+      email: 'employee@vividcrm.dev',
+      passwordHash: empHash,
+      firstName: 'Arjun',
+      lastName: 'Nair',
+      role: Role.EMPLOYEE,
+      isActive: true,
+    },
+  });
+  console.log(`✅ EMPLOYEE: ${employee.email}`);
+
+  console.log('\n📋 Seed credentials (development only):');
+  console.log('  superadmin@vividcrm.dev  →  SuperAdmin@123');
+  console.log('  admin@vividcrm.dev       →  Admin@123456');
+  console.log('  hr@vividcrm.dev          →  Hr@1234567890');
+  console.log('  teamlead@vividcrm.dev    →  TeamLead@123');
+  console.log('  employee@vividcrm.dev    →  Employee@123');
+  console.log('\n✅ Seed complete!');
+}
+
+main()
+  .catch((err) => {
+    console.error('❌ Seed failed:', err);
+    process.exit(1);
+  })
+  .finally(() => {
+    void prisma.$disconnect();
+  });

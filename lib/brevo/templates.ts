@@ -1,20 +1,23 @@
 type OtpType = "password_reset" | "password_change" | "registration";
 
-const TYPE_COPY: Record<OtpType, { subject: string; heading: string; body: string }> = {
+const TYPE_COPY: Record<OtpType, { subject: string; heading: string; body: string; note: string }> = {
   registration: {
-    subject: "Verify your Vivid View account",
-    heading: "Welcome to Vivid View!",
-    body: "Use the code below to verify your email and create your account. It&apos;s valid for <strong>10 minutes</strong>.",
+    subject: "Your Vivid View CRM Verification Code",
+    heading: "Email Verification",
+    body: "You have requested a verification code to confirm your email address. Enter the code below to proceed. This code is valid for <strong>10 minutes</strong> and can only be used once.",
+    note: "If you did not initiate this request, you may safely disregard this message. No action is required.",
   },
   password_reset: {
-    subject: "Reset your Vivid View password",
-    heading: "Reset your password",
-    body: "Use the code below to verify your identity and reset your password. It's valid for <strong>10 minutes</strong>.",
+    subject: "Password Reset Request — Vivid View CRM",
+    heading: "Password Reset",
+    body: "A password reset request was submitted for your account. Enter the verification code below to confirm your identity and proceed with resetting your password. This code is valid for <strong>10 minutes</strong>.",
+    note: "If you did not request a password reset, please disregard this message. Your password will not be changed.",
   },
   password_change: {
-    subject: "Verify your Vivid View password change",
-    heading: "Verify password change",
-    body: "Use the code below to confirm your identity before updating your password. It's valid for <strong>10 minutes</strong>.",
+    subject: "Password Change Verification — Vivid View CRM",
+    heading: "Password Change Verification",
+    body: "A request has been made to change the password on your account. Enter the verification code below to authorise this action. This code is valid for <strong>10 minutes</strong>.",
+    note: "If you did not initiate this change, please contact your administrator immediately.",
   },
 };
 
@@ -22,197 +25,121 @@ const LOGO_URL =
   "https://framerusercontent.com/images/2gAAyVbI2Y7gBWNO6ztH91fY2w.png?scale-down-to=512&width=1628&height=875";
 
 export function buildOtpEmail(otp: string, type: OtpType): { subject: string; htmlContent: string } {
-  const { subject, heading, body } = TYPE_COPY[type];
+  const { subject, heading, body, note } = TYPE_COPY[type];
   const digits = otp.split("");
 
   const htmlContent = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>${subject}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
-<body style="margin:0;padding:0;background-color:#0f0a1e;font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f0a1e;padding:40px 16px;">
+  <!-- Outer wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f7;padding:32px 0;">
     <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+      <td align="center" valign="top">
 
-          <!-- Brand Logo Banner -->
+        <!-- Email container — full width up to 640px -->
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%;background-color:#ffffff;border:1px solid #e0e0e0;">
+
+          <!-- Header bar -->
           <tr>
-            <td style="padding-bottom:20px;text-align:center;">
-              <img
-                src="${LOGO_URL}"
-                alt="Vivid View CRM"
-                width="220"
-                style="display:inline-block;max-width:220px;height:auto;border-radius:14px;"
-              />
+            <td style="background-color:#5b21b6;padding:24px 40px;text-align:left;">
+              <img src="${LOGO_URL}" alt="Vivid View CRM" width="140" style="display:inline-block;height:auto;max-width:140px;" />
             </td>
           </tr>
 
-          <!-- Header Card -->
+          <!-- Heading band -->
           <tr>
-            <td style="
-              background:linear-gradient(145deg,#2d0a5c 0%,#5b21b6 45%,#7c3aed 80%,#a855f7 100%);
-              border-radius:20px 20px 0 0;
-              padding:36px 36px 32px;
-              text-align:center;
-              box-shadow:0 -4px 32px rgba(124,58,237,0.3);
-            ">
-              <!-- Decorative ring -->
-              <div style="
-                width:64px;height:64px;
-                background:rgba(255,255,255,0.12);
-                border:2px solid rgba(255,255,255,0.25);
-                border-radius:50%;
-                margin:0 auto 18px;
-                display:flex;align-items:center;justify-content:center;
-                line-height:64px;
-                font-size:28px;
-              ">🔐</div>
-              <div style="
-                color:#ffffff;
-                font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                font-size:26px;
-                font-weight:800;
-                letter-spacing:-0.5px;
-                line-height:1.2;
-              ">${heading}</div>
-              <div style="
-                margin-top:6px;
-                width:40px;height:3px;
-                background:rgba(255,255,255,0.35);
-                border-radius:2px;
-                margin-left:auto;margin-right:auto;
-              "></div>
+            <td style="background-color:#7c3aed;padding:28px 40px 24px;">
+              <p style="margin:0;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
+                ${heading}
+              </p>
+              <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.75);">
+                Vivid View CRM &mdash; Security Notification
+              </p>
             </td>
           </tr>
 
-          <!-- Body Card -->
+          <!-- Body -->
           <tr>
-            <td style="
-              background:#1a1030;
-              padding:36px 36px 32px;
-              border-left:1px solid rgba(124,58,237,0.25);
-              border-right:1px solid rgba(124,58,237,0.25);
-            ">
-              <p style="
-                margin:0 0 28px;
-                color:#c4b5fd;
-                font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                font-size:15px;
-                font-weight:400;
-                line-height:1.75;
-                text-align:center;
-              ">${body}</p>
+            <td style="padding:36px 40px 28px;">
+              <p style="margin:0 0 28px;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#374151;line-height:1.7;">
+                ${body}
+              </p>
 
-              <!-- OTP digit row -->
-              <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+              <!-- OTP code row -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
                 <tr>
-                  ${digits
-                    .map(
-                      (d) =>
-                        `<td style="padding:0 5px;">
-                          <div style="
-                            width:50px;height:60px;
-                            background:linear-gradient(160deg,#6d28d9,#7c3aed);
-                            border-radius:14px;
-                            text-align:center;
-                            line-height:60px;
-                            font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                            font-size:30px;
-                            font-weight:800;
-                            color:#ffffff;
-                            letter-spacing:0;
-                            box-shadow:0 6px 20px rgba(109,40,217,0.55),inset 0 1px 0 rgba(255,255,255,0.15);
-                            border:1px solid rgba(168,85,247,0.4);
-                          ">${d}</div>
-                        </td>`
-                    )
-                    .join("")}
+                  ${digits.map((d) => `
+                  <td style="padding:0 4px;">
+                    <div style="
+                      width:48px;height:56px;
+                      background-color:#f5f3ff;
+                      border:2px solid #7c3aed;
+                      text-align:center;
+                      line-height:56px;
+                      font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;
+                      font-size:28px;
+                      font-weight:700;
+                      color:#5b21b6;
+                      letter-spacing:0;
+                    ">${d}</div>
+                  </td>`).join("")}
                 </tr>
               </table>
 
-              <!-- Expiry pill -->
-              <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+              <!-- Expiry notice -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;">
                 <tr>
                   <td style="
-                    background:rgba(109,40,217,0.15);
-                    border:1px solid rgba(124,58,237,0.35);
-                    border-radius:50px;
-                    padding:10px 22px;
-                    text-align:center;
+                    background-color:#f5f3ff;
+                    border-left:4px solid #7c3aed;
+                    padding:12px 16px;
                   ">
-                    <span style="
-                      color:#a78bfa;
-                      font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                      font-size:13px;
-                      font-weight:600;
-                      letter-spacing:0.2px;
-                    ">⏱&nbsp;&nbsp;This code expires in 10 minutes</span>
+                    <p style="margin:0;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#5b21b6;font-weight:600;">
+                      This code expires in 10 minutes. Do not share it with anyone.
+                    </p>
                   </td>
                 </tr>
               </table>
 
               <!-- Divider -->
-              <div style="height:1px;background:rgba(124,58,237,0.2);margin-bottom:24px;"></div>
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
+                <tr><td style="border-top:1px solid #e5e7eb;font-size:0;">&nbsp;</td></tr>
+              </table>
 
-              <p style="
-                margin:0;
-                color:#6b7280;
-                font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                font-size:13px;
-                font-weight:400;
-                line-height:1.7;
-                text-align:center;
-              ">
-                If you didn&apos;t request this code, you can safely ignore this email.<br/>
-                Someone may have entered your email address by mistake.
+              <!-- Security note -->
+              <p style="margin:0;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#6b7280;line-height:1.7;">
+                ${note}
               </p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="
-              background:#130d24;
-              border:1px solid rgba(124,58,237,0.2);
-              border-top:none;
-              border-radius:0 0 20px 20px;
-              padding:22px 36px;
-              text-align:center;
-            ">
-              <p style="
-                margin:0 0 6px;
-                color:#4b5563;
-                font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                font-size:12px;
-                font-weight:500;
-              ">
-                &copy; ${new Date().getFullYear()} Vivid View CRM &mdash; All rights reserved
+            <td style="background-color:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 40px;">
+              <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#9ca3af;">
+                &copy; ${new Date().getFullYear()} Vivid View CRM. All rights reserved.
               </p>
-              <p style="
-                margin:0;
-                color:#374151;
-                font-family:'Plus Jakarta Sans',ui-sans-serif,-apple-system,sans-serif;
-                font-size:11px;
-              ">
-                This is an automated message, please do not reply.
+              <p style="margin:0;font-family:'Plus Jakarta Sans','Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#d1d5db;">
+                This is an automated message. Please do not reply to this email.
               </p>
             </td>
           </tr>
 
         </table>
+        <!-- End email container -->
+
       </td>
     </tr>
   </table>
+
 </body>
 </html>`;
 

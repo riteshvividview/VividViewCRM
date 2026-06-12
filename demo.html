@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>vana ekantha // forest solitude</title>
+<meta name="description" content="A farmstay for intentional disconnection and deep restoration." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://api.fontshare.com" />
+<link href="https://fonts.googleapis.com/css2?family=Cascadia+Code:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@200,300,400,500,600&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+  --amber-roast: #9d5c26;
+  --mulberry-noir: #462b32;
+  --soft-cream: #faf0e6;
+  --dark-charcoal: #1d1d1b;
+  --pearl-mist: #fef8f8;
+  --mulberry-line: rgba(70, 43, 50, 0.22);
+  --mulberry-soft: rgba(70, 43, 50, 0.08);
+  --amber-line: rgba(157, 92, 38, 0.32);
+  --amber-soft: rgba(157, 92, 38, 0.10);
+  --cream-deep: #f3e6d4;
+  --font-sans: 'General Sans', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', ui-monospace, 'SF Mono', Menlo, monospace;
+  --ease-slow: cubic-bezier(0.6, 0.05, 0.3, 1);
+  --ease-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  /* Responsive spine width */
+  --spine-w: 40px;
+
+  /* Responsive padding — tighter on mobile */
+  --pad-x: clamp(1rem, 5vw, 7rem);
+  --pad-y: clamp(3rem, 8vw, 10rem);
+}
+
+/* Wider spine only on large screens */
+@media (min-width: 1024px) {
+  :root { --spine-w: 56px; }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: clamp(15px, 2vw, 19px);
+  line-height: 1.7;
+  color: var(--mulberry-noir);
+  background: var(--soft-cream);
+  overflow-x: hidden;
+  padding-left: var(--spine-w);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 1024px) {
+  body { cursor: none; }
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.27 0 0 0 0 0.17 0 0 0 0 0.20 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.10;
+  mix-blend-mode: multiply;
+}
+
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; border: none; background: none; color: inherit; cursor: pointer; }
+
+@media (min-width: 1024px) {
+  button, a, .hover-zone { cursor: none; }
+}
+
+/* ── Typography primitives ─────────────────────────────────── */
+
+.invocation {
+  font-family: var(--font-sans);
+  font-weight: 200;
+  font-style: italic;
+  font-size: clamp(1.6rem, 6vw, 5.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--mulberry-noir);
+}
+
+.section-title {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: clamp(1.4rem, 4vw, 3.2rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.section-title em {
+  font-style: italic;
+  font-weight: 200;
+  color: var(--amber-roast);
+}
+
+.field-marker {
+  font-family: var(--font-mono);
+  font-size: clamp(0.62rem, 1.5vw, 0.78rem);
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  color: var(--amber-roast);
+  display: inline-block;
+}
+
+.mono { font-family: var(--font-mono); }
+.italic { font-style: italic; }
+
+.spine {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--spine-w);
+  background: var(--soft-cream);
+  border-right: 1px solid var(--mulberry-line);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spine-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-mono);
+  font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+  letter-spacing: 0.32em;
+  color: var(--mulberry-noir);
+  padding: 1rem 0;
+  position: relative;
+  transition: color 300ms var(--ease-slow);
+}
+
+/* Hide label text on very small screens, keep button clickable */
+@media (max-width: 380px) {
+  .spine-label { font-size: 0; letter-spacing: 0; }
+}
+
+.spine-label::after {
+  content: '';
+  position: absolute;
+  bottom: -10px; left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  width: 1px; height: 0;
+  background: var(--amber-roast);
+  transition: height 320ms var(--ease-slow);
+}
+
+.spine:hover .spine-label { color: var(--amber-roast);
+}
+.spine:hover .spine-label::after { height: 20px; }
+
+.spine-mark {
+  position: absolute;
+  top: 1.5rem; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+  color: var(--amber-roast);
+  letter-spacing: 0.1em;
+}
+
+.spine-mark::before {
+  content: '';
+  display: block;
+  width: 12px; height: 12px;
+  margin: 0 auto 0.5rem;
+  background: var(--amber-roast);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='3' fill='currentColor'/></svg>") center/contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='3' fill='currentColor'/></svg>") center/contain no-repeat;
+}
+
+/* ── Spine overlay ──────────────────────────────────────────── */
+
+.spine-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: var(--soft-cream);
+  z-index: 250;
+  padding: 5rem var(--pad-x) 3rem;
+  opacity: 0; visibility: hidden;
+  transition: opacity 500ms var(--ease-slow), visibility 500ms var(--ease-slow);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+}
+.spine-overlay.open { opacity: 1; visibility: visible; }
+.spine-overlay .field-marker { margin-bottom: 2rem; }
+
+.spine-overlay-list { list-style: none; }
+.spine-overlay-list li {
+  font-family: var(--font-sans);
+  font-weight: 200;
+  font-size: clamp(1.8rem, 6vw, 5rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  padding: 0.3rem 0;
+  display: flex;
+  align-items: baseline;
+  gap: clamp(0.75rem, 2vw, 2rem);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 600ms var(--ease-slow), transform 600ms var(--ease-slow), color 300ms;
+}
+.spine-overlay.open .spine-overlay-list li { opacity: 1; transform: translateY(0); }
+.spine-overlay.open .spine-overlay-list li:nth-child(1) { transition-delay: 100ms; }
+.spine-overlay.open .spine-overlay-list li:nth-child(2) { transition-delay: 180ms; }
+.spine-overlay.open .spine-overlay-list li:nth-child(3) { transition-delay: 260ms; }
+.spine-overlay.open .spine-overlay-list li:nth-child(4) { transition-delay: 340ms; }
+.spine-overlay.open .spine-overlay-list li:nth-child(5) { transition-delay: 420ms; }
+.spine-overlay-list li .num {
+  font-family: var(--font-mono);
+  font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+  color: var(--amber-roast);
+  letter-spacing: 0.1em;
+}
+.spine-overlay-list li:hover { color: var(--amber-roast); font-style: italic; }
+
+.spine-close {
+  position: absolute;
+  top: 1.5rem; right: var(--pad-x);
+  font-family: var(--font-mono);
+  font-size: clamp(0.65rem, 1.5vw, 0.8rem);
+  color: var(--mulberry-noir);
+  letter-spacing: 0.15em;
+}
+.spine-close:hover { color: var(--amber-roast); }
+
+
+.solitude .field-marker { display: block; margin-bottom: clamp(1rem, 3vw, 2rem); }
+
+.land-head .field-marker { display: block; margin-bottom: 1.25rem; }
+
+.holding .field-marker { color: var(--amber-roast); }
+
+.cursor-dot {
+  position: fixed;
+  top: 0; left: 0;
+  width: 8px; height: 8px;
+  background: var(--mulberry-noir);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  transition: width 320ms var(--ease-slow), height 320ms var(--ease-slow),
+              background-color 320ms var(--ease-slow), border 320ms var(--ease-slow);
+  mix-blend-mode: multiply;
+}
+
+.cursor-dot.swollen {
+  width: 36px; height: 36px;
+  background: transparent;
+  border: 1px solid var(--amber-roast);
+}
+
+@media (hover: none), (max-width: 1023px) {
+  .cursor-dot { display: none; }
+  body { cursor: auto; }
+}
+
+    </style>
+    <body>
+        
+        <div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
+        
+        
+       <nav class="spine" aria-label="Primary">
+  <div class="spine-mark" aria-hidden="true">VE</div>
+  <button class="spine-label" id="spineToggle" aria-label="Open navigation index">
+    vana ekantha — index
+  </button>
+</nav>
+
+<!-- ── Spine Overlay ─────────────────────────────────────────── -->
+<div class="spine-overlay" id="spineOverlay" role="dialog" aria-label="Navigation">
+  <button class="spine-close" id="spineClose">[ close — esc ]</button>
+  <span class="field-marker">the index</span>
+  <ul class="spine-overlay-list">
+    <li><span class="num">01</span> stay</li>
+    <li><span class="num">02</span> the rituals</li>
+    <li><span class="num">03</span> the land</li>
+    <li><span class="num">04</span> the field journal</li>
+    <li><span class="num">05</span> holding a date</li>
+  </ul>
+</div>
+    </body>
+    <script>
+        const spineToggle = document.getElementById('spineToggle');
+const spineClose = document.getElementById('spineClose');
+const spineOverlay = document.getElementById('spineOverlay');
+
+function openSpine() { spineOverlay.classList.add('open'); document.body.style.overflow = 'hidden'; }
+function closeSpine() { spineOverlay.classList.remove('open'); document.body.style.overflow = ''; }
+
+spineToggle.addEventListener('click', openSpine);
+spineClose.addEventListener('click', closeSpine);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSpine(); });
+
+spineOverlay.querySelectorAll('li').forEach((li, i) => {
+  li.addEventListener('click', () => {
+    const targets = ['stay', 'rituals', 'land', 'journal', 'reserve'];
+    closeSpine();
+    setTimeout(() => {
+      const el = document.getElementById(targets[i]);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 400);
+  });
+});
+
+// ── 'r' to reserve ──────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'r' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
+    document.getElementById('reserve').scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
+// ── Cursor companion ────────────────────────────────────────
+const cursor = document.getElementById('cursorDot');
+let mouseX = 0, mouseY = 0, currX = 0, currY = 0;
+
+window.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
+function animateCursor() {
+  currX += (mouseX - currX) * 0.18;
+  currY += (mouseY - currY) * 0.18;
+  if (cursor) {
+    cursor.style.transform = `translate(${currX}px, ${currY}px) translate(-50%, -50%)`;
+  }
+  requestAnimationFrame(animateCursor);
+}
+animateCursor();
+
+document.querySelectorAll('a, button, label, .hotspot, .cottage, .ritual-card, .journal-post').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('swollen'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('swollen'));
+});
+    </script>
+</html>
