@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 interface Department { id: string; name: string; }
+interface Manager { id: string; label: string; }
 
 const EMPTY = {
   full_name: "",
@@ -23,8 +24,13 @@ const EMPTY = {
   department_id: "",
   employment_type: "full_time",
   date_of_joining: new Date().toISOString().split("T")[0],
-  basic_salary: "",
+  salary_ctc: "",
+  salary_basic: "",
   status: "active",
+  reporting_manager_id: "",
+  work_location: "office",
+  date_of_birth: "",
+  gender: "",
   emergency_contact_name: "",
   emergency_contact_phone: "",
   emergency_contact_relation: "",
@@ -34,6 +40,7 @@ export default function NewEmployeePage() {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -45,6 +52,12 @@ export default function NewEmployeePage() {
       if (!profile?.workspace_id) return;
       const { data: depts } = await supabase.from("hr_departments").select("id, name").eq("workspace_id", profile.workspace_id).order("name");
       setDepartments(depts ?? []);
+      const { data: emps } = await supabase.from("hr_employees").select("id, employee_code, profiles(full_name)")
+        .eq("workspace_id", profile.workspace_id).eq("status", "active").order("employee_code");
+      setManagers((emps ?? []).map((e) => {
+        const p = (Array.isArray(e.profiles) ? e.profiles[0] : e.profiles) as { full_name?: string } | null;
+        return { id: e.id, label: `${p?.full_name ?? "Unnamed"} (${e.employee_code})` };
+      }));
     }
     load();
   }, []);
@@ -111,6 +124,22 @@ export default function NewEmployeePage() {
               <Label>Phone</Label>
               <Input type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
             </div>
+            <div>
+              <Label>Date of Birth</Label>
+              <Input type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} />
+            </div>
+            <div>
+              <Label>Gender</Label>
+              <Select value={form.gender || "none"} onValueChange={(v) => set("gender", v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Prefer not to say</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -149,6 +178,27 @@ export default function NewEmployeePage() {
               </Select>
             </div>
             <div>
+              <Label>Reporting Manager</Label>
+              <Select value={form.reporting_manager_id || "none"} onValueChange={(v) => set("reporting_manager_id", v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No manager</SelectItem>
+                  {managers.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Work Location</Label>
+              <Select value={form.work_location} onValueChange={(v) => set("work_location", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="office">Office</SelectItem>
+                  <SelectItem value="remote">Remote</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Date of Joining *</Label>
               <Input type="date" value={form.date_of_joining} onChange={(e) => set("date_of_joining", e.target.value)} />
             </div>
@@ -171,14 +221,13 @@ export default function NewEmployeePage() {
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Compensation</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label>Basic Monthly Salary (₹)</Label>
-              <Input
-                type="number"
-                placeholder="25000"
-                value={form.basic_salary}
-                onChange={(e) => set("basic_salary", e.target.value)}
-              />
-              <p className="text-xs text-gray-400 mt-1">Used for payroll calculations (PF, ESI, PT)</p>
+              <Label>Annual CTC (₹)</Label>
+              <Input type="number" placeholder="600000" value={form.salary_ctc} onChange={(e) => set("salary_ctc", e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">Payroll splits this into basic, HRA, special allowance and PF</p>
+            </div>
+            <div>
+              <Label>Annual Basic (₹)</Label>
+              <Input type="number" placeholder="Optional — defaults to 50% of CTC" value={form.salary_basic} onChange={(e) => set("salary_basic", e.target.value)} />
             </div>
           </div>
         </div>

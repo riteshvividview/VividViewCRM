@@ -366,57 +366,36 @@ export default function ApplyLeavePage() {
     }
 
     setSubmitting(true);
-    const supabase = createClient();
-    const effectiveTo = toDate || fromDate;
-
-    // Core payload (always safe — these columns exist in original schema)
-    const corePayload: Record<string, unknown> = {
-      workspace_id: workspaceId,
-      employee_id: selectedEmployeeId,
-      leave_type_id: leaveTypeId,
-      from_date: fromDate,
-      to_date: effectiveTo,
-      days_count: daysCount,
-      is_half_day: isHalfDay,
-      half_day_date: isHalfDay ? fromDate : null,
-      reason: reason.trim() || null,
-      status: selectedType?.requires_approval ? "pending_l1" : "approved",
-    };
-
-    // Try with extended columns first (requires SQL Block B migration)
-    let result = await supabase.from("hr_leave_applications").insert({
-      ...corePayload,
-      notify_team_members: notifyTeam,
+    // Day count, balance, status and approvals are decided server-side.
+    const res = await fetch("/api/hrms/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id: selectedEmployeeId,
+        leave_type_id: leaveTypeId,
+        from_date: fromDate,
+        to_date: toDate || fromDate,
+        is_half_day: isHalfDay,
+        reason: reason.trim(),
+        notify_team_members: notifyTeam,
+      }),
     });
-
-    // Graceful fallback if notify_team_members column doesn't exist yet
-    if (result.error?.message?.includes("notify_team_members")) {
-      result = await supabase.from("hr_leave_applications").insert(corePayload);
-    }
-
-    if (result.error) {
-      toast.error("Failed to submit leave: " + result.error.message);
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(result.error ?? "Failed to submit leave");
       setSubmitting(false);
       return;
     }
-
-    // Update pending_days in balance (optimistic)
-    if (selectedBalance) {
-      await supabase
-        .from("hr_leave_balances")
-        .update({ pending_days: Number(selectedBalance.pending_days) + daysCount })
-        .eq("leave_type_id", leaveTypeId)
-        .eq("employee_id", selectedEmployeeId);
-    }
+    const autoApproved = result.application?.status === "approved";
 
     const appliedForSelf = selectedEmployeeId === ownEmployeeId;
     const targetName = allEmployees.find((e) => e.id === selectedEmployeeId)?.full_name;
     const suffix = !appliedForSelf && targetName ? ` for ${targetName}` : "";
 
     toast.success(
-      selectedType?.requires_approval
-        ? `Leave request submitted for approval${suffix}`
-        : `Leave approved automatically${suffix}`
+      autoApproved
+        ? `Leave approved${suffix}`
+        : `Leave request submitted for approval${suffix}`
     );
     router.push("/dashboard/hrms/leaves");
   }

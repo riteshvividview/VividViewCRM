@@ -176,7 +176,7 @@ function LeaveCard({
     showActions && isPending && (
       currentRole === "super_admin"
         ? true
-        : (currentRole === "hr" || currentRole === "team_lead") && !isApplicantHRLevel
+        : (currentRole === "hr" || (currentRole === "team_lead" && leave.status !== "pending_l2")) && !isApplicantHRLevel
     );
 
   return (
@@ -408,9 +408,8 @@ export default function LeavesPage() {
             .eq("reporting_manager_id", eid)
             .eq("workspace_id", wid);
           const reportIds = (reports ?? []).map((r) => r.id);
-          if (reportIds.length > 0) {
-            q = q.in("employee_id", reportIds);
-          }
+          // No direct reports → nothing to approve (never fall back to the whole workspace)
+          q = q.in("employee_id", reportIds.length ? reportIds : ["00000000-0000-0000-0000-000000000000"]);
         }
 
         const { data: all } = await q.order("created_at", { ascending: false });
@@ -431,44 +430,14 @@ export default function LeavesPage() {
       return;
     }
 
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    let newStatus = action === "approve" ? "approved" : action === "cancel" ? "cancelled" : "rejected";
-    const update: Record<string, unknown> = {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (action === "approve") {
-      update.approved_by = user.id;
-      update.approved_at = new Date().toISOString();
-    }
-    if (action === "reject" && reason) {
-      update.rejection_reason = reason;
-    }
-
-    const { error } = await supabase.from("hr_leave_applications").update(update).eq("id", id);
-    if (error) { toast.error("Action failed"); return; }
-
-    // Keep hr_attendance in sync so "On Leave" stats/records reflect approved leave days
-    const leave = allLeaves.find((l) => l.id === id);
-    const empId = leave?.hr_employees?.id;
-    if (leave && empId && workspaceId) {
-      const dates = dateRange(leave.from_date, leave.to_date);
-      if (action === "approve") {
-        await supabase.from("hr_attendance").upsert(
-          dates.map((date) => ({ workspace_id: workspaceId, employee_id: empId, date, status: "on_leave" })),
-          { onConflict: "employee_id,date" }
-        );
-      } else if (action === "cancel") {
-        await supabase.from("hr_attendance")
-          .delete()
-          .eq("employee_id", empId)
-          .eq("status", "on_leave")
-          .in("date", dates);
-      }
+    const res = await fetch(`/api/hrms/leaves/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, reason }),
+    });
+    if (!res.ok) {
+      toast.error((await res.json().catch(() => ({}))).error ?? "Action failed");
+      return;
     }
 
     toast.success(

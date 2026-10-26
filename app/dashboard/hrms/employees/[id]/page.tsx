@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { EmployeeLeavePolicyTab } from "@/components/hrms/employee-leave-policy-tab";
 import { EmployeeBackgroundTab } from "@/components/hrms/employee-background-tab";
 import { EmployeeDocumentsTab } from "@/components/hrms/employee-documents-tab";
+import { EmployeeEditDialog } from "@/components/hrms/employee-edit-dialog";
 import type { UserRole } from "@/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,6 +49,17 @@ interface EmployeeDetail {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   emergency_contact_relation: string | null;
+  reporting_manager_id: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  phone: string | null;
+  personal_email: string | null;
+  blood_group: string | null;
+  marital_status: string | null;
+  current_address: string | null;
+  permanent_address: string | null;
+  notice_period_days: number | null;
+  manager: { id: string; employee_code: string; profiles: { full_name: string } | null } | null;
   hr_departments: { id: string; name: string } | null;
   profiles: { full_name: string; avatar_url: string | null } | null;
 }
@@ -168,20 +180,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [creatingLogin, setCreatingLogin] = useState(false);
   const [loginForm, setLoginForm] = useState({ full_name: "", email: "" });
   const [editOpen, setEditOpen] = useState(false);
-  const [savingDetails, setSavingDetails] = useState(false);
-  const [editForm, setEditForm] = useState({
-    salary_ctc: "",
-    salary_basic: "",
-    pan_number: "",
-    aadhaar_number: "",
-    uan_number: "",
-    bank_name: "",
-    bank_ifsc: "",
-    bank_account_number: "",
-    emergency_contact_name: "",
-    emergency_contact_phone: "",
-    emergency_contact_relation: "",
-  });
+  const [canEdit, setCanEdit] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -201,10 +200,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       }
     }
     const [empRes, leaveBalRes, leaveAppRes, payslipRes] = await Promise.all([
-      supabase.from("hr_employees")
-        .select("*, hr_departments!department_id(id, name), profiles(full_name, avatar_url)")
-        .eq("id", id)
-        .single(),
+      fetch(`/api/hrms/employees/${id}`).then((r) => r.json()).catch(() => ({})),
       supabase.from("hr_leave_balances")
         .select("*, hr_leave_types(name, code, is_paid)")
         .eq("employee_id", id)
@@ -222,7 +218,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         .limit(12),
     ]);
 
-    setEmployee((empRes.data ?? null) as EmployeeDetail | null);
+    setEmployee((empRes.employee ?? null) as EmployeeDetail | null);
+    setCanEdit(!!empRes.canEdit);
     setLeaveBalances((leaveBalRes.data ?? []) as LeaveBalance[]);
     setLeaveApplications((leaveAppRes.data ?? []) as unknown as LeaveApplication[]);
     setPayslips((payslipRes.data ?? []) as Payslip[]);
@@ -295,53 +292,6 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  function openEdit() {
-    if (!employee) return;
-    setEditForm({
-      salary_ctc: employee.salary_ctc ? String(employee.salary_ctc) : "",
-      salary_basic: employee.salary_basic ? String(employee.salary_basic) : "",
-      pan_number: employee.pan_number ?? "",
-      aadhaar_number: employee.aadhaar_number ?? "",
-      uan_number: employee.uan_number ?? "",
-      bank_name: employee.bank_name ?? "",
-      bank_ifsc: employee.bank_ifsc ?? "",
-      bank_account_number: employee.bank_account_number ?? "",
-      emergency_contact_name: employee.emergency_contact_name ?? "",
-      emergency_contact_phone: employee.emergency_contact_phone ?? "",
-      emergency_contact_relation: employee.emergency_contact_relation ?? "",
-    });
-    setEditOpen(true);
-  }
-
-  async function handleSaveDetails() {
-    setSavingDetails(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.from("hr_employees").update({
-        salary_ctc: editForm.salary_ctc ? Number(editForm.salary_ctc) : 0,
-        salary_basic: editForm.salary_basic ? Number(editForm.salary_basic) : 0,
-        pan_number: editForm.pan_number.trim() || null,
-        aadhaar_number: editForm.aadhaar_number.trim() || null,
-        uan_number: editForm.uan_number.trim() || null,
-        bank_name: editForm.bank_name.trim() || null,
-        bank_ifsc: editForm.bank_ifsc.trim() || null,
-        bank_account_number: editForm.bank_account_number.trim() || null,
-        emergency_contact_name: editForm.emergency_contact_name.trim() || null,
-        emergency_contact_phone: editForm.emergency_contact_phone.trim() || null,
-        emergency_contact_relation: editForm.emergency_contact_relation.trim() || null,
-      }).eq("id", id);
-      if (error) throw error;
-
-      toast.success("Employee details updated");
-      setEditOpen(false);
-      await load();
-    } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Failed to update details");
-    } finally {
-      setSavingDetails(false);
-    }
-  }
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -371,9 +321,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       {/* Back + header */}
       <div className="flex items-center gap-3">
         <Button variant="outline" size="icon" asChild>
-          <Link href="/dashboard/hrms/employees"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href={canEdit ? "/dashboard/hrms/employees" : "/dashboard/hrms"}><ArrowLeft className="h-4 w-4" /></Link>
         </Button>
-        <h1 className="text-xl font-bold text-gray-900">Employee Profile</h1>
+        <h1 className="text-xl font-semibold">{canEdit ? "Employee Profile" : "My HR Profile"}</h1>
       </div>
 
       {/* Profile card */}
@@ -402,17 +352,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {!employee.profiles && (
+                {canEdit && !employee.profiles && (
                   <Button size="sm" className="bg-purple-700 hover:bg-purple-800 text-white" onClick={() => setLoginOpen(true)}>
                     <KeyRound className="h-3.5 w-3.5 mr-1.5" />Create Login
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={openEdit}>
+                {canEdit && <>
+                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                   <Edit2 className="h-3.5 w-3.5 mr-1.5" />Edit
                 </Button>
                 <Button variant="outline" size="sm" className="text-red-600 hover:text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteOpen(true)}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />Remove
                 </Button>
+                </>}
               </div>
             </div>
 
@@ -476,10 +428,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   ["Employee Code", employee.employee_code],
                   ["Designation", employee.designation],
                   ["Department", employee.hr_departments?.name ?? "—"],
+                  ["Reporting Manager", employee.manager?.profiles?.full_name ?? employee.manager?.employee_code ?? "—"],
                   ["Employment Type", TYPE_LABELS[employee.employment_type] ?? employee.employment_type],
                   ["Work Location", employee.work_location],
                   ["Date of Joining", fmtDate(employee.date_of_joining)],
                   ["Probation End", fmtDate(employee.probation_end_date)],
+                  ["Notice Period", employee.notice_period_days ? `${employee.notice_period_days} days` : "—"],
                   ["Status", employee.status.replace("_", " ")],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-sm">
@@ -510,6 +464,30 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   <div key={label} className="flex justify-between text-sm">
                     <dt className="text-gray-500">{label}</dt>
                     <dd className="font-medium text-gray-900">{value as string}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Personal */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5">
+              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <User className="h-4 w-4 text-indigo-500" />Personal Details
+              </h3>
+              <dl className="space-y-3">
+                {[
+                  ["Date of Birth", fmtDate(employee.date_of_birth)],
+                  ["Gender", employee.gender ?? "—"],
+                  ["Phone", employee.phone ?? "—"],
+                  ["Personal Email", employee.personal_email ?? "—"],
+                  ["Blood Group", employee.blood_group ?? "—"],
+                  ["Marital Status", employee.marital_status ?? "—"],
+                  ["Current Address", employee.current_address ?? "—"],
+                  ["Permanent Address", employee.permanent_address ?? "—"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-4 text-sm">
+                    <dt className="text-gray-500 shrink-0">{label}</dt>
+                    <dd className="font-medium text-gray-900 capitalize text-right">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -770,85 +748,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         </TabsContent>
       </Tabs>
 
-      {/* Edit details dialog */}
-      <Dialog open={editOpen} onOpenChange={(o) => { if (!savingDetails) setEditOpen(o); }}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Employee Details</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Compensation</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>Salary CTC (Annual ₹)</Label>
-                  <Input type="number" value={editForm.salary_ctc} onChange={(e) => setEditForm((f) => ({ ...f, salary_ctc: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Salary Basic (Annual ₹)</Label>
-                  <Input type="number" value={editForm.salary_basic} onChange={(e) => setEditForm((f) => ({ ...f, salary_basic: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Statutory & Bank Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>PAN Number</Label>
-                  <Input value={editForm.pan_number} onChange={(e) => setEditForm((f) => ({ ...f, pan_number: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Aadhaar Number</Label>
-                  <Input value={editForm.aadhaar_number} onChange={(e) => setEditForm((f) => ({ ...f, aadhaar_number: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>UAN Number</Label>
-                  <Input value={editForm.uan_number} onChange={(e) => setEditForm((f) => ({ ...f, uan_number: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Bank Name</Label>
-                  <Input value={editForm.bank_name} onChange={(e) => setEditForm((f) => ({ ...f, bank_name: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Bank IFSC</Label>
-                  <Input value={editForm.bank_ifsc} onChange={(e) => setEditForm((f) => ({ ...f, bank_ifsc: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Bank Account Number</Label>
-                  <Input value={editForm.bank_account_number} onChange={(e) => setEditForm((f) => ({ ...f, bank_account_number: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Emergency Contact</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label>Contact Name</Label>
-                  <Input value={editForm.emergency_contact_name} onChange={(e) => setEditForm((f) => ({ ...f, emergency_contact_name: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Phone Number</Label>
-                  <Input type="tel" value={editForm.emergency_contact_phone} onChange={(e) => setEditForm((f) => ({ ...f, emergency_contact_phone: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Relation</Label>
-                  <Input placeholder="Spouse, Parent, Sibling…" value={editForm.emergency_contact_relation} onChange={(e) => setEditForm((f) => ({ ...f, emergency_contact_relation: e.target.value }))} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingDetails}>Cancel</Button>
-            <Button onClick={handleSaveDetails} disabled={savingDetails}>
-              {savingDetails ? "Saving…" : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EmployeeEditDialog
+        employee={employee}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={() => load()}
+      />
 
       {/* Create login dialog */}
       <Dialog open={loginOpen} onOpenChange={(o) => { if (!creatingLogin) { setLoginOpen(o); if (!o) setLoginForm({ full_name: "", email: "" }); } }}>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { getAppForPath } from "@/lib/rbac/modules";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { ProfileProvider } from "@/lib/supabase/profile-context";
@@ -18,6 +20,12 @@ interface ShellProps {
 export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const currentApp = getAppForPath(usePathname()) ?? "";
+
+  // Expose the active app on <html> so portaled UI (dialogs, menus) picks up app theming too.
+  useEffect(() => {
+    document.documentElement.dataset.app = currentApp;
+  }, [currentApp]);
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebar-collapsed");
@@ -34,7 +42,7 @@ export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
   return (
     <ProfileProvider profile={profile} allowedModuleIds={allowedModuleIds}>
       <OfflineScreen />
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden bg-background" data-app={currentApp || undefined}>
         {/* Desktop sidebar */}
         <div className="hidden md:flex">
           <Sidebar collapsed={collapsed} onToggle={toggle} />

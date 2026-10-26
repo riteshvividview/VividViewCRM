@@ -17,6 +17,9 @@ const TYPE_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   attendance_correction_request:  { icon: FileEdit,     color: "text-amber-500" },
   attendance_correction_decision: { icon: CheckCheck,   color: "text-emerald-500" },
   attendance_monthly_processed:   { icon: CalendarCheck, color: "text-blue-500" },
+  leave_request:                  { icon: CalendarDays,  color: "text-muted-foreground" },
+  leave_decision:                 { icon: CalendarCheck, color: "text-muted-foreground" },
+  hr_request:                     { icon: FileEdit,      color: "text-muted-foreground" },
 };
 
 function timeAgo(iso: string) {

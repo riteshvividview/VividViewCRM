@@ -7,7 +7,10 @@ export type NotificationType =
   | "task_due"
   | "attendance_correction_request"
   | "attendance_correction_decision"
-  | "attendance_monthly_processed";
+  | "attendance_monthly_processed"
+  | "leave_request"
+  | "leave_decision"
+  | "hr_request";
 
 export interface Notification {
   id: string;

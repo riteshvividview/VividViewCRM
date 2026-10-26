@@ -1,4 +1,52 @@
 import type { Config } from "tailwindcss";
+import defaultColors from "tailwindcss/colors";
+import plugin from "tailwindcss/plugin";
+
+// ── Themable accent hues ──────────────────────────────────────────────────────
+// Accent hues are emitted as CSS variables (with the normal palette as fallback) so an
+// app can restyle them without touching markup. HRMS uses this for a calm, Notion-like
+// neutral look: [data-app="hrms"] remaps every decorative hue to the neutral scale.
+// red / green / amber are left alone because they carry status meaning.
+const SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"] as const;
+const PURPLE: Record<string, string> = {
+  50: "#faf5ff", 100: "#f3e8ff", 200: "#e9d5ff", 300: "#d8b4fe", 400: "#c084fc",
+  500: "#a855f7", 600: "#9333ea", 700: "#7c3aed", 800: "#6d28d9", 900: "#5b21b6", 950: "#3b0764",
+};
+const NEUTRAL_HUES = ["purple", "violet", "indigo", "blue", "sky", "cyan", "teal", "emerald", "lime", "yellow", "orange", "fuchsia", "pink", "rose"] as const;
+
+const hexToRgb = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+};
+const paletteOf = (hue: string): Record<string, string> =>
+  hue === "purple" ? PURPLE : (defaultColors as unknown as Record<string, Record<string, string>>)[hue];
+
+const themableColors = Object.fromEntries(
+  NEUTRAL_HUES.map((hue) => [
+    hue,
+    Object.fromEntries(SHADES.map((shade) => [shade, `rgb(var(--hue-${hue}-${shade}, ${hexToRgb(paletteOf(hue)[shade])}) / <alpha-value>)`])),
+  ]),
+);
+
+const neutralTheme = plugin(({ addBase }) => {
+  const neutral = (defaultColors as unknown as Record<string, Record<string, string>>).neutral;
+  const vars: Record<string, string> = {};
+  for (const hue of NEUTRAL_HUES) for (const shade of SHADES) vars[`--hue-${hue}-${shade}`] = hexToRgb(neutral[shade]);
+  addBase({
+    '[data-app="hrms"]': {
+      ...vars,
+      "--primary": "0 0% 9%",
+      "--primary-foreground": "0 0% 98%",
+      "--ring": "0 0% 45%",
+      "--sidebar-primary": "0 0% 9%",
+      "--sidebar-ring": "0 0% 45%",
+    },
+    '.dark[data-app="hrms"], .dark [data-app="hrms"], [data-app="hrms"] .dark': {
+      "--primary": "0 0% 93%",
+      "--primary-foreground": "0 0% 9%",
+    },
+  });
+});
 
 const config: Config = {
   darkMode: ["class"],
@@ -50,18 +98,7 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        purple: {
-          50: "#faf5ff",
-          100: "#f3e8ff",
-          200: "#e9d5ff",
-          300: "#d8b4fe",
-          400: "#c084fc",
-          500: "#a855f7",
-          600: "#9333ea",
-          700: "#7c3aed",
-          800: "#6d28d9",
-          900: "#5b21b6",
-        },
+        ...themableColors,
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -107,7 +144,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [neutralTheme],
 };
 
 export default config;

@@ -2,14 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { AppLauncher } from "./_components/app-launcher";
 import { SuperAdminDashboard } from "./_components/super-admin-dashboard";
 
-const ROLE_HOME: Record<string, string> = {
-  hr:        "/dashboard/hrms",
-  team_lead: "/dashboard/actions",
-  employee:  "/dashboard/actions",
-};
-
+// /dashboard is the app launcher: every user picks HRMS, Tasks, CRM… from here.
+// Super admins additionally get the cross-module overview underneath.
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -22,10 +19,10 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .single();
 
-  const role = profile?.role ?? "employee";
-  const home = ROLE_HOME[role];
-
-  if (home) redirect(home);
-
-  return <SuperAdminDashboard />;
+  return (
+    <div className="space-y-10">
+      <AppLauncher />
+      {profile?.role === "super_admin" && <SuperAdminDashboard />}
+    </div>
+  );
 }

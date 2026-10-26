@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Search, UserPlus, Building2, MoreHorizontal, Eye, Trash2,
+  Search, UserPlus, Building2, MoreHorizontal, Eye, Trash2, Pencil,
 } from "lucide-react";
+import { EmployeeEditDialog } from "@/components/hrms/employee-edit-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,16 @@ export default function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [removeTarget, setRemoveTarget] = useState<Employee | null>(null);
   const [removing, setRemoving] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [editEmp, setEditEmp] = useState<Record<string, any> | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  async function openEdit(id: string) {
+    const res = await fetch(`/api/hrms/employees/${id}`);
+    const json = await res.json();
+    if (!res.ok) { toast.error(json.error ?? "Failed to load employee"); return; }
+    setEditEmp(json.employee);
+  }
 
   useEffect(() => {
     async function load() {
@@ -82,7 +93,7 @@ export default function EmployeesPage() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [reloadKey]);
 
   async function confirmRemove() {
     if (!removeTarget) return;
@@ -244,6 +255,9 @@ export default function EmployeesPage() {
                                 <Eye className="h-3.5 w-3.5 mr-2" />View Profile
                               </Link>
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEdit(emp.id)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" />Edit details
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600"
                               onClick={() => setRemoveTarget(emp)}
@@ -316,6 +330,9 @@ export default function EmployeesPage() {
                         <Eye className="h-3.5 w-3.5 mr-2" />View Profile
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openEdit(emp.id)}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" />Edit details
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-red-600 focus:text-red-600"
                       onClick={() => setRemoveTarget(emp)}
@@ -349,6 +366,13 @@ export default function EmployeesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EmployeeEditDialog
+        employee={editEmp}
+        open={!!editEmp}
+        onOpenChange={(o) => !o && setEditEmp(null)}
+        onSaved={() => setReloadKey((k) => k + 1)}
+      />
     </div>
   );
 }

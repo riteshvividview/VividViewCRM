@@ -9,7 +9,10 @@ import {
   Package, FileText, BarChart3, Puzzle, Settings2, Settings,
   ChevronLeft, ChevronRight, Home, ShieldCheck, UserRound,
   Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
+  LayoutGrid, ArrowLeftRight, Laptop, Network, HandCoins, LifeBuoy, LogOut,
+  Star, Award, Briefcase, ClipboardCheck,
 } from "lucide-react";
+import { APPS, getAppForPath } from "@/lib/rbac/modules";
 import { cn } from "@/lib/utils";
 import { getNavGroups, type NavItem } from "./nav-config";
 import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
@@ -26,7 +29,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Inbox, PhoneCall, Mail, Megaphone, CalendarDays, Target,
   Package, FileText, BarChart3, Puzzle, Settings2, Settings, Home,
   ShieldCheck, UserRound, Clock, CalendarOff, Banknote, LayoutDashboard,
-  Receipt, FilePlus,
+  Receipt, FilePlus, LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
+  Star, Award, Briefcase, ClipboardCheck,
 };
 
 interface SidebarProps {
@@ -99,9 +103,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     () => new Set<ModuleId>(allowedModuleIds),
     [allowedModuleIds]
   );
+  const currentApp = getAppForPath(pathname);
+  const appDef = APPS.find((a) => a.id === currentApp);
   const navGroups = useMemo(
-    () => getNavGroups(allowedSet, role),
-    [allowedSet, role]
+    () => getNavGroups(allowedSet, role, currentApp),
+    [allowedSet, role, currentApp]
   );
 
   return (
@@ -123,10 +129,27 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {!collapsed && (
             <div className="overflow-hidden">
               <p className="text-sm font-semibold text-slate-900 dark:text-white leading-tight truncate">Vivid View</p>
-              <p className="text-[10px] text-muted-foreground font-medium tracking-wider uppercase leading-tight">CRM</p>
+              <p className="text-[10px] text-muted-foreground font-medium tracking-wider uppercase leading-tight">{appDef?.label ?? "Workspace"}</p>
             </div>
           )}
         </div>
+
+        {/* App switcher — back to the launcher */}
+        {appDef && (
+          <div className="px-2 pt-2 shrink-0">
+            <Link
+              href="/dashboard"
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-foreground transition-colors",
+                collapsed && "justify-center px-2"
+              )}
+              title="Switch app"
+            >
+              <ArrowLeftRight className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Switch app</span>}
+            </Link>
+          </div>
+        )}
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
