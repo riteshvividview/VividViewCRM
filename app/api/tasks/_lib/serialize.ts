@@ -9,6 +9,7 @@ export const TASK_SELECT = `
   created_by, workspace_id, created_at, updated_at,
   project_id, board_id, position, story_points, start_date,
   estimated_hours, actual_hours, started_at, completed_at,
+  planned_date, color, board_column_id, recurrence_parent_id,
   project:task_projects!project_id(id, name, color),
   board:task_boards!board_id(id, name)
 `;

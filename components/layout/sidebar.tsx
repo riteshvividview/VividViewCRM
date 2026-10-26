@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronRight, Home, ShieldCheck, UserRound,
   Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
   LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
-  Star, Award, Briefcase, ClipboardCheck,
+  Star, Award, Briefcase, ClipboardCheck, FolderKanban,
 } from "lucide-react";
 import { APPS, getAppForPath } from "@/lib/rbac/modules";
 import { AppSwitcher } from "./app-switcher";
@@ -31,7 +31,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Package, FileText, BarChart3, Puzzle, Settings2, Settings, Home,
   ShieldCheck, UserRound, Clock, CalendarOff, Banknote, LayoutDashboard,
   Receipt, FilePlus, LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
-  Star, Award, Briefcase, ClipboardCheck,
+  Star, Award, Briefcase, ClipboardCheck, FolderKanban,
 };
 
 interface SidebarProps {

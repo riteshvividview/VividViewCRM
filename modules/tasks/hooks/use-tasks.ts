@@ -40,6 +40,10 @@ const EMPTY_TASK: Omit<Task, "id" | "created_at" | "updated_at"> = {
   tags: [],
   project_id: null,
   board_id: null,
+  board_column_id: null,
+  planned_date: null,
+  color: null,
+  recurrence_parent_id: null,
   project: null,
   board: null,
   position: 0,
@@ -62,7 +66,7 @@ export function useTasks() {
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await apiFetch<{ items: Task[] }>("/api/tasks?limit=200");
+      const result = await apiFetch<{ items: Task[] }>("/api/tasks?limit=1000");
       setTasks(result.items ?? []);
     } catch (e) {
       console.error("[useTasks] fetchTasks failed:", e);
@@ -106,7 +110,10 @@ export function useTasks() {
           recurring_pattern: optimistic.recurring_pattern,
           tags: optimistic.tags,
           project_id: optimistic.project_id,
-          board_id: optimistic.board_id,
+          board_column_id: optimistic.board_column_id,
+          planned_date: optimistic.planned_date,
+          color: optimistic.color,
+          start_date: optimistic.start_date,
           estimated_hours: optimistic.estimated_hours,
           assignee_ids: t.assignee_ids,
           team_id: t.team_id,
@@ -129,14 +136,20 @@ export function useTasks() {
       return prev.map((t) => t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t);
     });
     try {
-      const { task } = await apiFetch<{ task: Task }>(`/api/tasks/${id}`, {
+      const { task, next_task } = await apiFetch<{ task: Task; next_task: Task | null }>(`/api/tasks/${id}`, {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
-      setTasks((prev) => prev.map((t) => t.id === id ? task : t));
+      // Completing a recurring task returns its next occurrence.
+      setTasks((prev) => {
+        const updated = prev.map((t) => t.id === id ? task : t);
+        return next_task && !updated.some((t) => t.id === next_task.id) ? [next_task, ...updated] : updated;
+      });
+      return task;
     } catch (e) {
       console.error("[useTasks] updateTask failed, reverting:", e);
       setTasks(snapshot);
+      throw e;
     }
   }, []);
 

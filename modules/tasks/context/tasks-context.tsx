@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { useTasks, type AddTaskInput } from "../hooks/use-tasks";
 import { TaskDetailPanel } from "../components/task-detail-panel";
 import { QuickAddTask } from "../components/quick-add-task";
@@ -14,13 +15,16 @@ interface TasksContextValue {
   labels: TaskLabel[];
   projects: TaskProjectListItem[];
   currentUserId: string | null;
-  addTask: (input: AddTaskInput) => Promise<Task>;
+  addTask: (input: AddTaskInput) => Promise<Task | null>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  addAssignees: (id: string, payload: { user_ids?: string[]; team_id?: string }) => Promise<Task>;
+  addAssignees: (id: string, payload: { user_ids?: string[]; team_id?: string }) => Promise<Task | null>;
+  removeAssignee: (id: string, userId: string) => Promise<Task | null>;
   openTask: (task: Task) => void;
-  openQuickAdd: () => void;
+  /** Opens the quick-add dialog, optionally pre-filled (e.g. planned date / project). */
+  openQuickAdd: (defaults?: Partial<AddTaskInput>) => void;
   refreshProjects: () => Promise<void>;
+  refreshTasks: () => Promise<void>;
 }
 
 const TasksContext = createContext<TasksContextValue | null>(null);
@@ -31,9 +35,11 @@ export function useTasksContext(): TasksContextValue {
   return ctx;
 }
 
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong");
+
 export function TasksProvider({ children }: { children: ReactNode }) {
   const {
-    tasks, loading, addTask, updateTask, deleteTask, currentUserId,
+    tasks, loading, fetchTasks, addTask, updateTask, deleteTask, currentUserId,
     addAssignees, removeAssignee, addLabel, removeLabel,
   } = useTasks();
 
@@ -41,127 +47,95 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [labels, setLabels] = useState<TaskLabel[]>([]);
   const [projects, setProjects] = useState<TaskProjectListItem[]>([]);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddDefaults, setQuickAddDefaults] = useState<Partial<AddTaskInput>>({});
 
-  async function refreshProjects() {
+  // The panel always shows the live copy of the selected task from the list.
+  const selectedTask = tasks.find((t) => t.id === selectedId) ?? null;
+
+  const refreshProjects = useCallback(async () => {
     try {
       const res = await fetch("/api/tasks/projects");
       const json = await res.json();
       if (res.ok) setProjects(json.projects ?? []);
     } catch {}
-  }
+  }, []);
 
   useEffect(() => {
-    async function fetchMembers() {
-      try {
-        const res = await fetch("/api/tasks/members");
-        const json = await res.json();
-        if (res.ok) {
-          setMembers(json.members ?? []);
-          setTeams(json.teams ?? []);
-        }
-      } catch {}
-    }
-    async function fetchLabels() {
-      try {
-        const res = await fetch("/api/tasks/labels");
-        const json = await res.json();
-        if (res.ok) setLabels(json.labels ?? []);
-      } catch {}
-    }
-    fetchMembers();
-    fetchLabels();
+    fetch("/api/tasks/members").then((r) => r.json()).then((json) => {
+      setMembers(json.members ?? []);
+      setTeams(json.teams ?? []);
+    }).catch(() => {});
+    fetch("/api/tasks/labels").then((r) => r.json()).then((json) => setLabels(json.labels ?? [])).catch(() => {});
     refreshProjects();
-  }, []);
+  }, [refreshProjects]);
 
   // Global "T" hotkey for quick add, available across every Tasks-module page
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "t" || e.key === "T") { e.preventDefault(); setQuickAddOpen(true); }
+      const el = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || el.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "t" || e.key === "T") { e.preventDefault(); setQuickAddDefaults({}); setQuickAddOpen(true); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function openTask(task: Task) {
-    setSelectedTask(task);
-    setPanelOpen(true);
-  }
-
-  function openQuickAdd() {
-    setQuickAddOpen(true);
-  }
-
-  async function handleUpdate(id: string, updates: Partial<Task>) {
-    await updateTask(id, updates);
-    setSelectedTask((p) => (p?.id === id ? { ...p, ...updates } : p));
-  }
-
-  async function handleAddAssignees(id: string, payload: { user_ids?: string[]; team_id?: string }) {
-    const task = await addAssignees(id, payload);
-    setSelectedTask((p) => (p?.id === id ? task : p));
-  }
-
-  async function handleRemoveAssignee(id: string, userId: string) {
-    const task = await removeAssignee(id, userId);
-    setSelectedTask((p) => (p?.id === id ? task : p));
-  }
-
-  async function handleAddLabel(id: string, labelId: string) {
-    const task = await addLabel(id, labelId);
-    setSelectedTask((p) => (p?.id === id ? task : p));
-  }
-
-  async function handleRemoveLabel(id: string, labelId: string) {
-    const task = await removeLabel(id, labelId);
-    setSelectedTask((p) => (p?.id === id ? task : p));
-  }
-
-  async function handleDelete(id: string) {
-    await deleteTask(id);
-    setSelectedTask((p) => (p?.id === id ? null : p));
-    setPanelOpen((open) => (selectedTask?.id === id ? false : open));
-  }
-
-  async function handleAdd(input: AddTaskInput) {
-    await addTask(input);
-  }
+  const value: TasksContextValue = {
+    tasks, loading, members, teams, labels, projects, currentUserId, refreshProjects,
+    refreshTasks: fetchTasks,
+    addTask: async (input) => {
+      try { return await addTask(input); } catch (e) { toast.error(errMsg(e)); return null; }
+    },
+    updateTask: async (id, updates) => {
+      try { await updateTask(id, updates); } catch (e) { toast.error(errMsg(e)); }
+    },
+    deleteTask: async (id) => {
+      await deleteTask(id);
+      if (selectedId === id) { setPanelOpen(false); setSelectedId(null); }
+    },
+    addAssignees: async (id, payload) => {
+      try { return await addAssignees(id, payload); } catch (e) { toast.error(errMsg(e)); return null; }
+    },
+    removeAssignee: async (id, userId) => {
+      try { return await removeAssignee(id, userId); } catch (e) { toast.error(errMsg(e)); return null; }
+    },
+    openTask: (task) => { setSelectedId(task.id); setPanelOpen(true); },
+    openQuickAdd: (defaults) => { setQuickAddDefaults(defaults ?? {}); setQuickAddOpen(true); },
+  };
 
   return (
-    <TasksContext.Provider
-      value={{
-        tasks, loading, members, teams, labels, projects, currentUserId,
-        addTask, updateTask, deleteTask, addAssignees, openTask, openQuickAdd, refreshProjects,
-      }}
-    >
+    <TasksContext.Provider value={value}>
       {children}
 
       <TaskDetailPanel
         task={selectedTask}
-        open={panelOpen}
+        open={panelOpen && !!selectedTask}
         onClose={() => setPanelOpen(false)}
-        onUpdate={handleUpdate}
-        onDelete={handleDelete}
+        onUpdate={value.updateTask}
+        onDelete={value.deleteTask}
         members={members}
         teams={teams}
         labels={labels}
+        projects={projects}
         currentUserId={currentUserId}
-        onAddAssignees={handleAddAssignees}
-        onRemoveAssignee={handleRemoveAssignee}
-        onAddLabel={handleAddLabel}
-        onRemoveLabel={handleRemoveLabel}
+        onAddAssignees={(id, p) => { value.addAssignees(id, p); }}
+        onRemoveAssignee={(id, u) => { value.removeAssignee(id, u); }}
+        onAddLabel={(id, l) => { addLabel(id, l).catch((e) => toast.error(errMsg(e))); }}
+        onRemoveLabel={(id, l) => { removeLabel(id, l).catch((e) => toast.error(errMsg(e))); }}
       />
 
       <QuickAddTask
         open={quickAddOpen}
         onClose={() => setQuickAddOpen(false)}
-        onAdd={handleAdd}
+        onAdd={async (input) => { await value.addTask({ ...quickAddDefaults, ...input }); }}
         members={members}
         teams={teams}
+        projects={projects}
+        defaults={quickAddDefaults}
       />
     </TasksContext.Provider>
   );

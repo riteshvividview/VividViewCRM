@@ -1,7 +1,63 @@
 export type TaskStatus = "todo" | "in_progress" | "waiting" | "done";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 export type LinkedEntityType = "lead" | "deal" | "contact" | "company" | null;
-export type RecurringPattern = "daily" | "weekly" | "monthly" | null;
+export type RecurringPattern = "daily" | "workdays" | "weekly" | "biweekly" | "monthly" | "yearly" | null;
+
+export const RECURRING_OPTIONS: { value: Exclude<RecurringPattern, null>; label: string }[] = [
+  { value: "daily", label: "Every day" },
+  { value: "workdays", label: "Every workday (Mon–Fri)" },
+  { value: "weekly", label: "Every week" },
+  { value: "biweekly", label: "Every 2 weeks" },
+  { value: "monthly", label: "Every month" },
+  { value: "yearly", label: "Every year" },
+];
+
+/** Bordio-style task colours (card accent). */
+export const TASK_COLORS = ["#ef4444", "#f97316", "#f59e0b", "#10b981", "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#64748b"];
+
+/** A custom status column of a project board. */
+export interface BoardColumn {
+  id: string;
+  board_id: string;
+  name: string;
+  color: string | null;
+  position: number;
+  status_key: TaskStatus;
+  is_done_column: boolean;
+}
+
+export interface TimeBlock {
+  id: string;
+  task_id: string;
+  user_id: string | null;
+  start_at: string;
+  end_at: string;
+  task?: { id: string; title: string; status: TaskStatus; color: string | null; priority: TaskPriority; project: { id: string; name: string; color: string | null } | null } | null;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  type: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  attendees: string[];
+  notes: string | null;
+  video_call_link: string | null;
+  color_override: string | null;
+  created_by: string | null;
+}
+
+export interface TaskAttachment {
+  id: string;
+  file_name: string;
+  size_bytes: number | null;
+  mime_type: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  url: string | null;
+}
 
 export interface SubTask {
   id: string;
@@ -72,6 +128,9 @@ export interface TaskProjectListItem {
   icon: string | null;
   team_id: string | null;
   archived_at: string | null;
+  owner_id?: string | null;
+  task_count?: number;
+  open_count?: number;
 }
 
 /** A workspace team, used for "assign to a team" pickers. */
@@ -104,6 +163,11 @@ export interface Task {
   tags: string[];
   project_id: string | null;
   board_id: string | null;
+  board_column_id: string | null;
+  /** The day the task is planned for in the weekly planner (null = waiting list). */
+  planned_date: string | null;
+  color: string | null;
+  recurrence_parent_id: string | null;
   project: TaskProjectRef | null;
   board: TaskBoardRef | null;
   position: number;

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Trash2, CalendarDays, User, Link2, CheckSquare, Square, Plus, RefreshCw, Flag, Clock } from "lucide-react";
+import { X, Trash2, CalendarDays, User, Link2, CheckSquare, Square, Plus, RefreshCw, Flag, Clock, CalendarClock, FolderKanban, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Task, TaskStatus, TaskPriority, SubTask, TaskMember, TaskTeam, TaskLabel } from "../types";
-import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
+import type { Task, TaskStatus, TaskPriority, SubTask, TaskMember, TaskTeam, TaskLabel, TaskProjectListItem, BoardColumn, RecurringPattern } from "../types";
+import { STATUS_CONFIG, PRIORITY_CONFIG, RECURRING_OPTIONS, TASK_COLORS } from "../types";
+import { TaskTimeBlocks } from "./task-time-blocks";
+import { TaskAttachments } from "./task-attachments";
 import { AssigneePicker, AssigneeAvatar } from "./assignee-picker";
 import { LabelPicker } from "./label-picker";
 import { TaskFollowers } from "./task-followers";
@@ -23,6 +25,7 @@ interface TaskDetailPanelProps {
   members: TaskMember[];
   teams: TaskTeam[];
   labels: TaskLabel[];
+  projects: TaskProjectListItem[];
   currentUserId: string | null;
   onAddAssignees: (id: string, payload: { user_ids?: string[]; team_id?: string }) => void;
   onRemoveAssignee: (id: string, userId: string) => void;
@@ -30,19 +33,28 @@ interface TaskDetailPanelProps {
   onRemoveLabel: (id: string, labelId: string) => void;
 }
 
-export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, members, teams, labels, currentUserId, onAddAssignees, onRemoveAssignee, onAddLabel, onRemoveLabel }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, members, teams, labels, projects, currentUserId, onAddAssignees, onRemoveAssignee, onAddLabel, onRemoveLabel }: TaskDetailPanelProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [newSubTask, setNewSubTask] = useState("");
   const [addingSubTask, setAddingSubTask] = useState(false);
+  const [columns, setColumns] = useState<BoardColumn[]>([]);
+  const projectId = task?.project_id ?? null;
+
+  // Custom status columns of the task's project
+  useEffect(() => {
+    setColumns([]);
+    if (!projectId) return;
+    fetch(`/api/tasks/projects/${projectId}`).then((r) => r.json()).then((j) => setColumns(j.columns ?? [])).catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     if (task) {
       setTitle(task.title);
       setDescription(task.description);
     }
-  }, [task?.id]);
+  }, [task?.id, task?.title, task?.description]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && open) onClose(); };
@@ -116,22 +128,64 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, membe
 
           {/* Properties */}
           <div className="px-5 space-y-1 pb-4 border-b border-border/50">
-            {/* Status */}
+            {/* Status — project columns when the task belongs to a project */}
             <div className="flex items-center gap-3 py-1.5">
               <span className="text-xs text-muted-foreground w-24 shrink-0">Status</span>
-              <Select value={task.status} onValueChange={(v) => save({ status: v as TaskStatus })}>
+              {columns.length > 0 ? (
+                <Select value={task.board_column_id ?? ""} onValueChange={(v) => save({ board_column_id: v })}>
+                  <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
+                    {(() => {
+                      const c = columns.find((x) => x.id === task.board_column_id);
+                      return <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: c?.color ?? "#94a3b8" }} />{c?.name ?? STATUS_CONFIG[task.status].label}</span>;
+                    })()}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color ?? "#94a3b8" }} />{c.name}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select value={task.status} onValueChange={(v) => save({ status: v as TaskStatus })}>
+                  <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
+                    <span className={cn("flex items-center gap-1.5", STATUS_CONFIG[task.status].color)}>
+                      <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_CONFIG[task.status].dot)} />
+                      {STATUS_CONFIG[task.status].label}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}><span className={cn("flex items-center gap-2", STATUS_CONFIG[s].color)}><span className={cn("w-2 h-2 rounded-full", STATUS_CONFIG[s].dot)} />{STATUS_CONFIG[s].label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Project */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><FolderKanban className="h-3.5 w-3.5" />Project</span>
+              <Select value={task.project_id ?? "__none__"} onValueChange={(v) => save({ project_id: v === "__none__" ? null : v })}>
                 <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
-                  <span className={cn("flex items-center gap-1.5", STATUS_CONFIG[task.status].color)}>
-                    <span className={cn("w-1.5 h-1.5 rounded-full", STATUS_CONFIG[task.status].dot)} />
-                    {STATUS_CONFIG[task.status].label}
+                  <span className="flex items-center gap-1.5">
+                    {task.project && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: task.project.color ?? "#6366f1" }} />}
+                    {task.project?.name ?? "No project"}
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((s) => (
-                    <SelectItem key={s} value={s}><span className={cn("flex items-center gap-2", STATUS_CONFIG[s].color)}><span className={cn("w-2 h-2 rounded-full", STATUS_CONFIG[s].dot)} />{STATUS_CONFIG[s].label}</span></SelectItem>
+                  <SelectItem value="__none__">No project</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color ?? "#6366f1" }} />{p.name}</span></SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Planned date (weekly planner day; empty = waiting list) */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><CalendarClock className="h-3.5 w-3.5" />Planned for</span>
+              <Input type="date" className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto focus-visible:ring-0" value={task.planned_date ?? ""} onChange={(e) => save({ planned_date: e.target.value || null })} />
+              {!task.planned_date && <span className="text-[11px] text-muted-foreground">In waiting list</span>}
             </div>
 
             {/* Type / Labels */}
@@ -223,13 +277,31 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, membe
               </div>
             )}
 
-            {/* Recurring */}
-            {task.recurring_pattern && (
-              <div className="flex items-center gap-3 py-1.5">
-                <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" />Recurring</span>
-                <span className="text-xs text-foreground capitalize">{task.recurring_pattern}</span>
+            {/* Repeat */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" />Repeat</span>
+              <Select value={task.recurring_pattern ?? "__none__"} onValueChange={(v) => save({ recurring_pattern: v === "__none__" ? null : (v as RecurringPattern) })}>
+                <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
+                  <span>{RECURRING_OPTIONS.find((o) => o.value === task.recurring_pattern)?.label ?? "Does not repeat"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Does not repeat</SelectItem>
+                  {RECURRING_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Colour */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><Palette className="h-3.5 w-3.5" />Colour</span>
+              <div className="flex items-center gap-1.5">
+                {TASK_COLORS.map((c) => (
+                  <button key={c} title={c} onClick={() => save({ color: task.color === c ? null : c })}
+                    className={cn("h-5 w-5 rounded-full border-2 transition-transform hover:scale-110", task.color === c ? "border-foreground" : "border-transparent")}
+                    style={{ backgroundColor: c }} />
+                ))}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Description */}
@@ -286,6 +358,9 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, membe
               </div>
             )}
           </div>
+
+          <TaskTimeBlocks taskId={task.id} plannedDate={task.planned_date} estimatedHours={task.estimated_hours} />
+          <TaskAttachments taskId={task.id} />
 
           {/* Activity (system events + comments) */}
           <div className="border-t border-border/50">

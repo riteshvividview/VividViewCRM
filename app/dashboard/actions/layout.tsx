@@ -1,15 +1,9 @@
 "use client";
 
 import { TasksProvider } from "@/modules/tasks/context/tasks-context";
-import { TasksSidebar } from "@/modules/tasks/components/tasks-sidebar";
 
+// The task app uses the main sidebar for navigation (Planner, Schedule, Tasks, Team, Projects),
+// so pages get the full width the weekly planner needs.
 export default function ActionsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <TasksProvider>
-      <div className="flex gap-6">
-        <TasksSidebar />
-        <div className="flex-1 min-w-0">{children}</div>
-      </div>
-    </TasksProvider>
-  );
+  return <TasksProvider>{children}</TasksProvider>;
 }
