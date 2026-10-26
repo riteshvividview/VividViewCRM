@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu } from "lucide-react";
+import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu, LayoutGrid } from "lucide-react";
+import { APPS, getAppForPath, getAppHome } from "@/lib/rbac/modules";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -26,6 +28,12 @@ interface TopbarProps {
   onMenuOpen?: () => void;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Breadcrumb trail: App → page → sub-page. Labels come from the nav registry;
+ * the app's home page isn't repeated and record IDs read as "Details".
+ */
 function useBreadcrumb(role: UserRole, allowedModuleIds: ModuleId[]) {
   const pathname = usePathname();
   const allowedSet = useMemo(() => new Set<ModuleId>(allowedModuleIds), [allowedModuleIds]);
@@ -33,17 +41,26 @@ function useBreadcrumb(role: UserRole, allowedModuleIds: ModuleId[]) {
     () => getNavGroups(allowedSet, role).flatMap((g) => g.items),
     [allowedSet, role]
   );
-  const segments = pathname.split("/").filter(Boolean);
+  const appId = getAppForPath(pathname);
+  const app = APPS.find((a) => a.id === appId);
+  const appHome = app ? getAppHome(app.id, allowedSet) : null;
+
   const crumbs: { label: string; href: string }[] = [];
+  if (app && appHome) crumbs.push({ label: app.label, href: appHome });
+
+  const segments = pathname.split("/").filter(Boolean);
   let path = "";
   for (const seg of segments) {
     path += "/" + seg;
+    if (path === "/dashboard" || path === appHome) continue;
+    if (appHome && appHome.startsWith(path + "/")) continue; // parent of the app home
     const navItem = navItems.find((i) => i.href === path);
     crumbs.push({
-      label: navItem?.label ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "),
+      label: navItem?.label ?? (UUID_RE.test(seg) ? "Details" : seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " ")),
       href: path,
     });
   }
+  if (crumbs.length === 0) crumbs.push({ label: pathname === "/dashboard" ? "All apps" : "Dashboard", href: pathname });
   return crumbs;
 }
 
@@ -80,22 +97,38 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
       </Button>
 
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground flex-1 min-w-0 overflow-hidden">
-        {crumbs.map((crumb, i) => (
-          <span key={crumb.href} className="flex items-center gap-1 min-w-0">
-            {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />}
+      <nav aria-label="Breadcrumb" className="flex flex-1 min-w-0 items-center overflow-hidden">
+        <ol className="flex min-w-0 items-center gap-0.5 text-sm leading-none">
+          <li className="flex items-center">
             <Link
-              href={crumb.href}
-              className={
-                i === crumbs.length - 1
-                  ? "font-semibold text-foreground truncate"
-                  : "hover:text-foreground transition-colors truncate hidden sm:block"
-              }
+              href="/dashboard"
+              title="All apps"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              {crumb.label}
+              <LayoutGrid className="h-4 w-4" />
             </Link>
-          </span>
-        ))}
+          </li>
+          {crumbs.map((crumb, i) => {
+            const last = i === crumbs.length - 1;
+            return (
+              <li key={crumb.href} className={cn("flex min-w-0 items-center gap-0.5", !last && "hidden sm:flex")}>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40" aria-hidden />
+                {last ? (
+                  <span aria-current="page" className="flex h-8 items-center truncate rounded-md px-2 font-semibold text-foreground">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={crumb.href}
+                    className="flex h-8 items-center truncate rounded-md px-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {crumb.label}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ol>
       </nav>
 
       {/* Global search hint */}

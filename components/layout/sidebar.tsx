@@ -9,10 +9,11 @@ import {
   Package, FileText, BarChart3, Puzzle, Settings2, Settings,
   ChevronLeft, ChevronRight, Home, ShieldCheck, UserRound,
   Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
-  LayoutGrid, ArrowLeftRight, Laptop, Network, HandCoins, LifeBuoy, LogOut,
+  LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
   Star, Award, Briefcase, ClipboardCheck,
 } from "lucide-react";
 import { APPS, getAppForPath } from "@/lib/rbac/modules";
+import { AppSwitcher } from "./app-switcher";
 import { cn } from "@/lib/utils";
 import { getNavGroups, type NavItem } from "./nav-config";
 import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
@@ -134,22 +135,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
         </div>
 
-        {/* App switcher — back to the launcher */}
-        {appDef && (
-          <div className="px-2 pt-2 shrink-0">
-            <Link
-              href="/dashboard"
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-foreground transition-colors",
-                collapsed && "justify-center px-2"
-              )}
-              title="Switch app"
-            >
-              <ArrowLeftRight className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>Switch app</span>}
-            </Link>
-          </div>
-        )}
+        {/* App switcher (Alt+1…9 / Alt+0 work anywhere in the dashboard) */}
+        <div className="px-2 pt-2 shrink-0">
+          <AppSwitcher currentApp={currentApp} allowedModuleIds={allowedModuleIds} collapsed={collapsed} />
+        </div>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
