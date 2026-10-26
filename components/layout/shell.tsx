@@ -20,9 +20,7 @@ interface ShellProps {
 export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const pathname = usePathname();
-  // The launcher and account pages share the calm neutral theme with HRMS.
-  const currentApp = getAppForPath(pathname) ?? (pathname === "/dashboard" || pathname.startsWith("/dashboard/profile") ? "home" : "");
+  const currentApp = getAppForPath(usePathname()) ?? "";
 
   // Expose the active app on <html> so portaled UI (dialogs, menus) picks up app theming too.
   useEffect(() => {

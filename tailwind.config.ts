@@ -33,7 +33,7 @@ const neutralTheme = plugin(({ addBase }) => {
   const vars: Record<string, string> = {};
   for (const hue of NEUTRAL_HUES) for (const shade of SHADES) vars[`--hue-${hue}-${shade}`] = hexToRgb(neutral[shade]);
   addBase({
-    '[data-app="hrms"], [data-app="home"]': {
+    '[data-app="hrms"]': {
       ...vars,
       "--primary": "0 0% 9%",
       "--primary-foreground": "0 0% 98%",
@@ -41,7 +41,7 @@ const neutralTheme = plugin(({ addBase }) => {
       "--sidebar-primary": "0 0% 9%",
       "--sidebar-ring": "0 0% 45%",
     },
-    '.dark[data-app="hrms"], .dark [data-app="hrms"], .dark[data-app="home"], .dark [data-app="home"]': {
+    '.dark[data-app="hrms"], .dark [data-app="hrms"], [data-app="hrms"] .dark': {
       "--primary": "0 0% 93%",
       "--primary-foreground": "0 0% 9%",
     },
