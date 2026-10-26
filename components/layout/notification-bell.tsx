@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, CheckCheck, Zap, GitMerge, UserPlus, AtSign, CalendarDays, AlertCircle } from "lucide-react";
+import { Bell, CheckCheck, Zap, GitMerge, UserPlus, AtSign, CalendarDays, AlertCircle, FileEdit, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications";
 import type { Notification, NotificationType } from "@/modules/notifications/types";
@@ -14,6 +14,9 @@ const TYPE_CONFIG: Record<NotificationType, { icon: React.ElementType; color: st
   mention:            { icon: AtSign,      color: "text-amber-500" },
   event_reminder:     { icon: CalendarDays, color: "text-indigo-500" },
   task_due:           { icon: AlertCircle, color: "text-red-500" },
+  attendance_correction_request:  { icon: FileEdit,     color: "text-amber-500" },
+  attendance_correction_decision: { icon: CheckCheck,   color: "text-emerald-500" },
+  attendance_monthly_processed:   { icon: CalendarCheck, color: "text-blue-500" },
 };
 
 function timeAgo(iso: string) {

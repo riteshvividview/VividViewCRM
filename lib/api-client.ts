@@ -232,16 +232,4 @@ export const invoicesApi = {
   updateSettings: (data: unknown) => api.patch('/invoices/settings', data),
 };
 
-// Tasks
-export const tasksApi = {
-  list: (params?: Record<string, string | undefined>) => api.get('/tasks', params),
-  get: (id: string) => api.get(`/tasks/${id}`),
-  create: (data: unknown) => api.post('/tasks', data),
-  update: (id: string, data: unknown) => api.patch(`/tasks/${id}`, data),
-  delete: (id: string) => api.delete(`/tasks/${id}`),
-  move: (id: string, data: unknown) => api.post(`/tasks/${id}/move`, data),
-  projects: () => api.get('/projects'),
-  boards: (projectId: string) => api.get(`/projects/${projectId}/boards`),
-};
-
 export { ApiError };

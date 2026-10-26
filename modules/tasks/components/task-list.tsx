@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { CheckCircle2, Circle, CalendarDays, User } from "lucide-react";
+import { CheckCircle2, Circle, CalendarDays } from "lucide-react";
 import type { Task } from "../types";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "../types";
+import { AssigneeStack } from "./assignee-picker";
 import { cn } from "@/lib/utils";
 
 type GroupBy = "assignee" | "due_date" | "status";
@@ -46,12 +47,7 @@ function TaskRow({ task, onTaskClick, onStatusToggle }: { task: Task; onTaskClic
             {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
         )}
-        {task.assignee_name && (
-          <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-            <User className="h-3 w-3" />
-            {task.assignee_name.split(" ")[0]}
-          </span>
-        )}
+        {task.assignees.length > 0 && <AssigneeStack members={task.assignees} max={3} />}
       </div>
     </div>
   );
@@ -62,9 +58,15 @@ export function TaskList({ tasks, groupBy, onTaskClick, onStatusToggle }: TaskLi
     if (groupBy === "assignee") {
       const map = new Map<string, Task[]>();
       tasks.forEach((t) => {
-        const key = t.assignee_name ?? "Unassigned";
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(t);
+        if (t.assignees.length === 0) {
+          if (!map.has("Unassigned")) map.set("Unassigned", []);
+          map.get("Unassigned")!.push(t);
+          return;
+        }
+        t.assignees.forEach((a) => {
+          if (!map.has(a.full_name)) map.set(a.full_name, []);
+          map.get(a.full_name)!.push(t);
+        });
       });
       return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
     }

@@ -253,12 +253,12 @@ export default function DepartmentsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(dept)}>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEdit(dept); }}>
                         <Pencil className="h-3.5 w-3.5 mr-2" />Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-600"
-                        onClick={() => setDeleteTarget(dept)}
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(dept); }}
                         disabled={count > 0}
                       >
                         <Trash2 className="h-3.5 w-3.5 mr-2" />Delete

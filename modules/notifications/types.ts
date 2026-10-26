@@ -4,7 +4,10 @@ export type NotificationType =
   | "lead_assigned"
   | "mention"
   | "event_reminder"
-  | "task_due";
+  | "task_due"
+  | "attendance_correction_request"
+  | "attendance_correction_decision"
+  | "attendance_monthly_processed";
 
 export interface Notification {
   id: string;

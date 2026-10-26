@@ -33,6 +33,7 @@ interface EmployeeDetail {
   employment_type: string;
   status: string;
   date_of_joining: string;
+  user_id: string | null;
   date_of_exit: string | null;
   probation_end_date: string | null;
   work_location: string;
@@ -258,13 +259,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   async function handleDelete() {
     setDeleting(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("hr_employees").delete().eq("id", id);
-      if (error) throw error;
-      toast.success("Employee deleted");
+      const res = await fetch(`/api/hrms/employees/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to remove employee");
+      toast.success("Employee removed");
       router.push("/dashboard/hrms/employees");
     } catch (e: unknown) {
-      toast.error((e as Error).message ?? "Failed to delete employee");
+      toast.error((e as Error).message ?? "Failed to remove employee");
       setDeleting(false);
     }
   }
@@ -410,7 +411,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   <Edit2 className="h-3.5 w-3.5 mr-1.5" />Edit
                 </Button>
                 <Button variant="outline" size="sm" className="text-red-600 hover:text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteOpen(true)}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />Remove
                 </Button>
               </div>
             </div>
@@ -891,17 +892,18 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <Dialog open={deleteOpen} onOpenChange={(o) => { if (!deleting) setDeleteOpen(o); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Employee?</DialogTitle>
+            <DialogTitle>Remove Employee?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-500">
-            Are you sure you want to remove <span className="font-medium text-gray-900">{fullName}</span> from the
-            organisation? Their attendance, leave, and payroll records will be permanently deleted, and their linked
-            login account will be unlinked from HR data. This cannot be undone.
+            This will permanently remove <span className="font-medium text-gray-900">{fullName}</span> from HRMS —
+            their department assignment, attendance, leave and payroll records will be deleted.
+            {employee.user_id && " Their login will also be disabled so they can no longer access the system."}
+            {" "}This cannot be undone.
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? "Removing…" : "Remove"}
             </Button>
           </DialogFooter>
         </DialogContent>

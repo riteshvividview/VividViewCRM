@@ -40,20 +40,24 @@ export default function HrmsDashboardPage() {
         const today = new Date().toISOString().split("T")[0];
         const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
 
-        const [empRes, todayAttRes, pendingRes, newRes] = await Promise.all([
+        const [empRes, todayAttRes, pendingRes, newRes, onLeaveRes] = await Promise.all([
           supabase.from("hr_employees").select("status").eq("workspace_id", wid),
           supabase.from("hr_attendance").select("status").eq("workspace_id", wid).eq("date", today),
           supabase.from("hr_leave_applications")
             .select("id, days_count, from_date, to_date, hr_leave_types(name), hr_employees(profiles(full_name))")
             .eq("workspace_id", wid).in("status", ["pending_l1", "pending_l2"]).order("created_at", { ascending: false }).limit(5),
           supabase.from("hr_employees").select("id").eq("workspace_id", wid).gte("date_of_joining", firstOfMonth),
+          supabase.from("hr_leave_applications")
+            .select("employee_id")
+            .eq("workspace_id", wid).eq("status", "approved").lte("from_date", today).gte("to_date", today),
         ]);
 
         const employees = empRes.data ?? [];
+        const onLeaveToday = new Set((onLeaveRes.data ?? []).map((l) => l.employee_id)).size;
         setStats({
           total: employees.length,
           active: employees.filter((e) => e.status === "active").length,
-          on_leave: employees.filter((e) => e.status === "on_notice").length,
+          on_leave: onLeaveToday,
           new_this_month: newRes.data?.length ?? 0,
         });
 

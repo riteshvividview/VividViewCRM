@@ -9,6 +9,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, CheckCircle2, Circle } from "lucide-re
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Task } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
+import { AssigneeStack } from "./assignee-picker";
 import { cn } from "@/lib/utils";
 
 function SortHeader({ column, label }: { column: any; label: string }) {
@@ -19,6 +20,11 @@ function SortHeader({ column, label }: { column: any; label: string }) {
       {s === "asc" ? <ArrowUp className="h-3 w-3" /> : s === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-40" />}
     </button>
   );
+}
+
+function formatHours(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return `${value}h`;
 }
 
 interface TaskTableProps {
@@ -82,11 +88,24 @@ export function TaskTable({ tasks, onTaskClick, onStatusToggle, selectedIds, onS
       },
     },
     {
-      accessorKey: "priority",
-      header: ({ column }) => <SortHeader column={column} label="Priority" />,
+      id: "type",
+      header: "Type",
       cell: ({ row }) => {
-        const cfg = PRIORITY_CONFIG[row.original.priority];
-        return <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", cfg.bg, cfg.color)}>{cfg.label}</span>;
+        const labels = row.original.labels;
+        if (!labels || labels.length === 0) return <span className="text-muted-foreground/40 text-sm">—</span>;
+        return (
+          <div className="flex items-center gap-1 flex-wrap max-w-[160px]">
+            {labels.map((l) => (
+              <span
+                key={l.id}
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: `${l.color}1a`, color: l.color }}
+              >
+                {l.name}
+              </span>
+            ))}
+          </div>
+        );
       },
     },
     {
@@ -104,11 +123,43 @@ export function TaskTable({ tasks, onTaskClick, onStatusToggle, selectedIds, onS
       },
     },
     {
-      accessorKey: "assignee_name",
+      id: "assignees",
       header: "Assignee",
-      cell: ({ row }) => row.original.assignee_name
-        ? <span className="text-sm text-foreground">{row.original.assignee_name}</span>
-        : <span className="text-muted-foreground/40 text-sm">—</span>,
+      cell: ({ row }) => <AssigneeStack members={row.original.assignees} />,
+    },
+    {
+      id: "estimated_hours",
+      header: ({ column }) => <SortHeader column={column} label="Est. Time" />,
+      accessorKey: "estimated_hours",
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatHours(row.original.estimated_hours)}</span>,
+    },
+    {
+      id: "actual_hours",
+      header: "Logged Time",
+      cell: ({ row }) => <span className="text-sm text-muted-foreground">{formatHours(row.original.actual_hours)}</span>,
+    },
+    {
+      id: "created_in",
+      header: "Create In",
+      cell: ({ row }) => {
+        const t = row.original;
+        const name = t.project?.name ?? t.board?.name;
+        if (!name) return <span className="text-muted-foreground/40 text-sm">—</span>;
+        return (
+          <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+            {t.project?.color && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.project.color }} />}
+            {name}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "priority",
+      header: ({ column }) => <SortHeader column={column} label="Priority" />,
+      cell: ({ row }) => {
+        const cfg = PRIORITY_CONFIG[row.original.priority];
+        return <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", cfg.bg, cfg.color)}>{cfg.label}</span>;
+      },
     },
   ], [tasks, selectedIds, onSelectChange, onStatusToggle]);
 

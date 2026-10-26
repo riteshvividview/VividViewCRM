@@ -9,20 +9,76 @@ export interface SubTask {
   checked: boolean;
 }
 
+/** A workspace member, used for assignees/reporter/pickers. */
+export interface TaskMember {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
+
+/** A persisted comment from /api/tasks/[id]/comments. */
 export interface TaskComment {
   id: string;
   task_id: string;
-  author: string;
-  content: string;
+  body: string;
+  author: TaskMember | null;
+  parent_comment_id: string | null;
+  edited_at: string | null;
   created_at: string;
 }
 
-export interface TaskActivity {
+export type TaskActivityAction =
+  | "created" | "updated" | "assignee_added" | "assignee_removed" | "label_added" | "label_removed";
+
+/** A persisted entry from task_activity_log, via /api/tasks/[id]/activity. */
+export interface TaskActivityEntry {
   id: string;
-  task_id: string;
-  type: "created" | "status_changed" | "assigned" | "due_date_set" | "comment";
-  content: string;
+  action: TaskActivityAction | string;
+  field_name: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  old_value: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  new_value: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: any;
+  actor_id: string;
   created_at: string;
+}
+
+export interface TaskLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface TaskProjectRef {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export interface TaskBoardRef {
+  id: string;
+  name: string;
+}
+
+/** A project as listed in "All projects" — from /api/tasks/projects. */
+export interface TaskProjectListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  color: string | null;
+  icon: string | null;
+  team_id: string | null;
+  archived_at: string | null;
+}
+
+/** A workspace team, used for "assign to a team" pickers. */
+export interface TaskTeam {
+  id: string;
+  name: string;
+  member_ids: string[];
 }
 
 export interface Task {
@@ -32,8 +88,13 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   due_date: string | null;
+  /** @deprecated kept for backward compatibility — use `assignees` */
   assignee_id: string | null;
+  /** @deprecated kept for backward compatibility — use `assignees` */
   assignee_name: string | null;
+  assignees: TaskMember[];
+  reporter: TaskMember | null;
+  labels: TaskLabel[];
   linked_entity_type: LinkedEntityType;
   linked_entity_id: string | null;
   linked_entity_name: string | null;
@@ -41,6 +102,17 @@ export interface Task {
   sub_tasks: SubTask[];
   recurring_pattern: RecurringPattern;
   tags: string[];
+  project_id: string | null;
+  board_id: string | null;
+  project: TaskProjectRef | null;
+  board: TaskBoardRef | null;
+  position: number;
+  story_points: number | null;
+  start_date: string | null;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_by: string | null;
   workspace_id: string | null;
   created_at: string;

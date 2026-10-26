@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Task, TaskStatus } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
+import { AssigneeStack } from "./assignee-picker";
 import { cn } from "@/lib/utils";
 
 function PriorityDot({ priority }: { priority: Task["priority"] }) {
@@ -70,6 +71,19 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
           <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
       </div>
+      {task.labels.length > 0 && (
+        <div className="flex items-center gap-1 mt-2 flex-wrap">
+          {task.labels.map((l) => (
+            <span
+              key={l.id}
+              className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              style={{ backgroundColor: `${l.color}1a`, color: l.color }}
+            >
+              {l.name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 mt-2.5 flex-wrap">
         <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", priCfg.bg, priCfg.color)}>
           {priCfg.label}
@@ -81,14 +95,14 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
           </span>
         )}
         {task.sub_tasks.length > 0 && (
-          <span className="text-[10px] text-muted-foreground ml-auto">
+          <span className="text-[10px] text-muted-foreground">
             {task.sub_tasks.filter((s) => s.checked).length}/{task.sub_tasks.length}
           </span>
         )}
-        {task.assignee_name && (
-          <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-            {task.assignee_name.split(" ")[0]}
-          </span>
+        {task.assignees.length > 0 && (
+          <div className="ml-auto">
+            <AssigneeStack members={task.assignees} max={3} />
+          </div>
         )}
       </div>
     </div>

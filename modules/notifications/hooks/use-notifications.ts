@@ -35,11 +35,24 @@ export function useNotifications() {
 
   const markRead = useCallback((id: string) => {
     setNotifications((p) => p.map((n) => n.id === id ? { ...n, read: true } : n));
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!url) return;
+    (async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      await createClient().from("notifications").update({ read: true }).eq("id", id);
+    })();
   }, []);
 
   const markAllRead = useCallback(() => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
     setNotifications((p) => p.map((n) => ({ ...n, read: true })));
-  }, []);
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!url || unreadIds.length === 0) return;
+    (async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      await createClient().from("notifications").update({ read: true }).in("id", unreadIds);
+    })();
+  }, [notifications]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

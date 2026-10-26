@@ -1,24 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Flag, CalendarDays } from "lucide-react";
+import { X, Flag, CalendarDays, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task, TaskPriority } from "../types";
+import type { Task, TaskPriority, TaskMember, TaskTeam } from "../types";
 import { PRIORITY_CONFIG } from "../types";
+import { AssigneePicker } from "./assignee-picker";
+import type { AddTaskInput } from "../hooks/use-tasks";
 import { cn } from "@/lib/utils";
 
 interface QuickAddTaskProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (t: Partial<Task>) => void;
+  onAdd: (t: AddTaskInput) => void;
+  members: TaskMember[];
+  teams: TaskTeam[];
 }
 
-export function QuickAddTask({ open, onClose, onAdd }: QuickAddTaskProps) {
+export function QuickAddTask({ open, onClose, onAdd, members, teams }: QuickAddTaskProps) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
+  const [assignees, setAssignees] = useState<TaskMember[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,6 +33,7 @@ export function QuickAddTask({ open, onClose, onAdd }: QuickAddTaskProps) {
       setTitle("");
       setPriority("medium");
       setDueDate("");
+      setAssignees([]);
     }
   }, [open]);
 
@@ -39,9 +45,27 @@ export function QuickAddTask({ open, onClose, onAdd }: QuickAddTaskProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  function addUsers(userIds: string[]) {
+    setAssignees((prev) => {
+      const existing = new Set(prev.map((m) => m.id));
+      const additions = members.filter((m) => userIds.includes(m.id) && !existing.has(m.id));
+      return [...prev, ...additions];
+    });
+  }
+
+  function addTeam(teamId: string) {
+    const team = teams.find((t) => t.id === teamId);
+    if (!team) return;
+    addUsers(team.member_ids);
+  }
+
+  function removeAssignee(userId: string) {
+    setAssignees((prev) => prev.filter((m) => m.id !== userId));
+  }
+
   function handleSubmit() {
     if (!title.trim()) return;
-    onAdd({ title: title.trim(), priority, due_date: dueDate || null });
+    onAdd({ title: title.trim(), priority, due_date: dueDate || null, assignee_ids: assignees.map((m) => m.id) });
     onClose();
   }
 
@@ -88,6 +112,10 @@ export function QuickAddTask({ open, onClose, onAdd }: QuickAddTaskProps) {
                 <CalendarDays className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
                 <Input type="date" className="h-8 text-xs pl-7" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0"><User className="h-3.5 w-3.5" />Assign</span>
+              <AssigneePicker value={assignees} members={members} teams={teams} onAddUsers={addUsers} onAddTeam={addTeam} onRemove={removeAssignee} />
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>

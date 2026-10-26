@@ -1,0 +1,478 @@
+Based on your structure, I can already see that an attendance module exists:
+
+backend/src/modules/hrms/attendance/attendance.controller.ts
+backend/src/modules/hrms/attendance/attendance.module.ts
+Attendance workflow documentation also exists:
+about-system/04-module-workflows/attendance-workflow.md
+
+So before implementing biometric integration, you first need to find out exactly what your office device supports.
+
+Information You Need From GEON
+
+Ask your office admin or check the device settings and collect:
+
+1. Device Model Number
+
+Example:
+
+GEON X990
+GEON F18
+GEON UFace
+GEON MB20
+
+Without the exact model nobody can tell which integration method is supported.
+
+2. Does It Have an IP Address?
+
+Example:
+
+192.168.1.150
+
+If yes, it is a network-enabled biometric device.
+
+This is the most common scenario.
+
+3. Is It Using ZKTeco Firmware?
+
+Many Indian biometric companies:
+
+GEON
+eSSL
+Matrix resellers
+Rebranded attendance devices
+
+internally use ZKTeco firmware.
+
+If it is ZKTeco based, integration becomes much easier.
+
+4. Does It Export Attendance?
+
+Check if the device can export:
+
+CSV
+Excel
+TXT
+
+If yes, then Phase 1 integration can be done immediately.
+
+5. Does It Have:
+SDK
+API
+Webhook
+Push Service
+Attendance Server
+
+Ask GEON support.
+
+This is the most important question.
+
+6. Current Attendance Software
+
+Ask:
+
+Which software currently receives attendance from the device?
+
+Examples:
+
+BioTime
+eTimeTrackLite
+ZKBioTime
+GEON HRMS
+Custom Software
+
+This tells us how attendance is currently flowing.
+
+How Keka Usually Works
+
+Most companies do NOT connect Keka directly to fingerprint devices.
+
+Flow:
+
+Biometric Device
+        ↓
+Attendance Middleware
+        ↓
+Keka
+
+Example:
+
+Fingerprint Device
+        ↓
+ZKBioTime
+        ↓
+API Sync
+        ↓
+Keka
+
+Your HRMS should use the same architecture.
+
+Recommended Architecture For Your HRMS
+Fingerprint Device
+        ↓
+Attendance Sync Service
+        ↓
+Supabase
+        ↓
+Attendance Module
+        ↓
+Reports
+
+Never let the frontend talk to biometric devices.
+
+Only backend services should.
+
+Best Attendance Strategy
+
+I would implement attendance in this order:
+
+Method 1 (Most Reliable)
+Biometric Device
+
+Office Employees
+
+Fingerprint
+Face
+RFID Card
+
+Punches attendance.
+
+Method 2
+Mobile Attendance
+
+Field Employees
+
+GPS Required
+
+If outside office:
+
+Allow Punch In
+Capture GPS
+Store Latitude
+Store Longitude
+Store Address
+Store Device Info
+Method 3
+Work From Home
+Manual Punch
++
+Screenshot
++
+GPS
++
+IP Address
+
+Store all records.
+
+Attendance Database You Will Eventually Need
+
+Expect tables similar to:
+
+hr_shifts
+hr_shift_assignments
+
+hr_attendance
+
+hr_attendance_logs
+
+hr_biometric_devices
+
+hr_biometric_sync_logs
+
+hr_geo_attendance
+
+hr_face_attendance
+
+hr_attendance_adjustments
+
+hr_attendance_policies
+
+hr_overtime_rules
+
+hr_late_rules
+Claude Prompt 1 (Attendance Foundation)
+
+Use this first.
+
+MANDATORY CONTEXT
+
+Before implementation read:
+
+about-system/global-rules.txt
+about-system/00-supabase-state/*
+all documentation inside about-system
+
+Treat them as source of truth.
+
+TASK
+
+Implement Attendance Management Foundation.
+
+Create and complete:
+
+Shift Management
+General Shift
+Morning Shift
+Evening Shift
+Night Shift
+Flexible Shift
+Employee Shift Assignment
+Punch In
+Punch Out
+Break Tracking
+Attendance Calendar
+Attendance History
+Attendance Reports
+Attendance Dashboard
+Attendance Status
+
+Statuses:
+
+Present
+Absent
+Half Day
+Leave
+Holiday
+Weekend
+Work From Home
+
+Requirements:
+
+Mobile first
+Tablet responsive
+Desktop responsive
+
+Provide:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+Claude Prompt 2 (Biometric Foundation)
+
+MANDATORY CONTEXT
+
+Read global-rules.txt and all about-system documentation.
+
+TASK
+
+Implement biometric architecture foundation.
+
+Create:
+
+Biometric Devices page
+Device Registry
+
+Store:
+
+Device Name
+Device Model
+Serial Number
+IP Address
+Location
+Status
+Attendance Sync Service
+Biometric Sync Logs
+Sync Monitoring Dashboard
+Manual Sync Button
+Failed Sync Tracking
+Audit Logs
+
+Do not integrate any specific device yet.
+
+Build generic biometric architecture first.
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+Claude Prompt 3 (GEON Integration)
+
+Only run this after you know:
+
+GEON Model Number
+API/SDK availability
+
+MANDATORY CONTEXT
+
+Read all system documentation.
+
+TASK
+
+Integrate GEON biometric device into existing biometric architecture.
+
+Requirements:
+
+Pull attendance logs automatically.
+Store raw punch logs.
+Convert punch logs into attendance records.
+Prevent duplicate imports.
+Store sync history.
+Store device status.
+Store last successful sync.
+Generate attendance automatically.
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+Claude Prompt 4 (Attendance Automation)
+
+TASK
+
+Implement attendance automation.
+
+Features:
+
+Late Coming Rules
+Grace Period
+Early Exit Rules
+Overtime Rules
+Half Day Rules
+Auto Attendance Calculation
+Auto Shift Detection
+Auto Status Calculation
+Attendance Exception Handling
+Attendance Reprocessing
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+
+
+Claude Prompt 5 (GPS Attendance)
+
+TASK,
+
+Implement Mobile GPS Attendance.
+
+Requirements:
+
+When employee punches from mobile:
+
+Request location permission
+Capture latitude
+Capture longitude
+Capture accuracy
+Capture timestamp
+Capture address
+
+Store all values.
+
+If employee is outside office:
+
+Allow punch but mark:
+
+Remote Attendance
+
+Create map view for HR.
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+Claude Prompt 6 (Geo-Fencing)
+
+TASK
+
+Implement Geo-Fencing.
+
+Requirements:
+
+HR can define:
+
+Office Location
+Radius
+
+Examples:
+
+100m
+200m
+500m
+
+Inside Radius:
+
+Office Attendance
+
+Outside Radius:
+
+Remote Attendance
+
+Store distance from office.
+
+Provide HR reports.
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Completion percentage
+
+
+
+Claude Prompt 7 (Face Recognition + Final Enterprise Attendance)
+
+TASK,
+
+Implement final enterprise attendance features.
+
+Face Recognition Attendance
+Attendance Selfie Verification
+Excel Attendance Import
+Attendance Corrections
+Attendance Approval Workflow
+Attendance Audit Trail
+Attendance Analytics
+Team Attendance Dashboard
+HR Attendance Dashboard
+Attendance Export
+Monthly Attendance Processing
+Payroll Integration Readiness
+Attendance Notifications
+Attendance Compliance Reports
+
+Ensure the attendance module is enterprise-grade and production-ready.
+
+Return:
+
+A. What was implemented
+
+B. SQL commands required
+
+C. Documentation updates
+
+D. Final completion percentage
+
+Before running Prompt 3, get me the exact GEON model number (photo of the sticker on the back or device settings screen). Once we know the model, I can tell you the exact integration method (API, SDK, ZKTeco protocol, Excel import, or cloud sync).

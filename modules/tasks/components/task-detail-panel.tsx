@@ -1,20 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Trash2, CalendarDays, User, Link2, CheckSquare, Square, Plus, Send, RefreshCw, Flag } from "lucide-react";
+import { X, Trash2, CalendarDays, User, Link2, CheckSquare, Square, Plus, RefreshCw, Flag, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Task, TaskStatus, TaskPriority, SubTask, TaskComment } from "../types";
+import type { Task, TaskStatus, TaskPriority, SubTask, TaskMember, TaskTeam, TaskLabel } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
-
-const FALLBACK_ASSIGNEES = [
-  { id: "u1", name: "Alex Kumar" },
-  { id: "u2", name: "Priya Singh" },
-  { id: "u3", name: "Sam Tiwari" },
-];
+import { AssigneePicker, AssigneeAvatar } from "./assignee-picker";
+import { LabelPicker } from "./label-picker";
+import { TaskFollowers } from "./task-followers";
+import { TaskActivityFeed } from "./task-activity-feed";
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -22,16 +20,20 @@ interface TaskDetailPanelProps {
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
-  assignees?: { id: string; name: string }[];
+  members: TaskMember[];
+  teams: TaskTeam[];
+  labels: TaskLabel[];
+  currentUserId: string | null;
+  onAddAssignees: (id: string, payload: { user_ids?: string[]; team_id?: string }) => void;
+  onRemoveAssignee: (id: string, userId: string) => void;
+  onAddLabel: (id: string, labelId: string) => void;
+  onRemoveLabel: (id: string, labelId: string) => void;
 }
 
-export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assignees }: TaskDetailPanelProps) {
-  const ASSIGNEES = assignees ?? FALLBACK_ASSIGNEES;
+export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, members, teams, labels, currentUserId, onAddAssignees, onRemoveAssignee, onAddLabel, onRemoveLabel }: TaskDetailPanelProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [comment, setComment] = useState("");
-  const [comments, setComments] = useState<TaskComment[]>([]);
   const [newSubTask, setNewSubTask] = useState("");
   const [addingSubTask, setAddingSubTask] = useState(false);
 
@@ -39,7 +41,6 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assig
     if (task) {
       setTitle(task.title);
       setDescription(task.description);
-      setComments([]);
     }
   }, [task?.id]);
 
@@ -67,13 +68,6 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assig
 
   function removeSubTask(stId: string) {
     save({ sub_tasks: task!.sub_tasks.filter((s) => s.id !== stId) });
-  }
-
-  function addComment() {
-    if (!comment.trim()) return;
-    const c: TaskComment = { id: crypto.randomUUID(), task_id: task!.id, author: "You", content: comment.trim(), created_at: new Date().toISOString() };
-    setComments((p) => [...p, c]);
-    setComment("");
   }
 
   const completedSubTasks = task.sub_tasks.filter((s) => s.checked).length;
@@ -140,6 +134,17 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assig
               </Select>
             </div>
 
+            {/* Type / Labels */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0">Type</span>
+              <LabelPicker
+                value={task.labels}
+                labels={labels}
+                onAdd={(labelId) => onAddLabel(task.id, labelId)}
+                onRemove={(labelId) => onRemoveLabel(task.id, labelId)}
+              />
+            </div>
+
             {/* Priority */}
             <div className="flex items-center gap-3 py-1.5">
               <span className="text-xs text-muted-foreground w-24 shrink-0">Priority</span>
@@ -163,25 +168,51 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assig
               <Input type="date" className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto focus-visible:ring-0" value={task.due_date ?? ""} onChange={(e) => save({ due_date: e.target.value || null })} />
             </div>
 
-            {/* Assignee */}
+            {/* Assignee(s) */}
             <div className="flex items-center gap-3 py-1.5">
               <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><User className="h-3.5 w-3.5" />Assignee</span>
-              <Select
-                value={task.assignee_id ?? "__none__"}
-                onValueChange={(v) => {
-                  if (v === "__none__") { save({ assignee_id: null, assignee_name: null }); return; }
-                  const a = ASSIGNEES.find((a) => a.id === v);
-                  save({ assignee_id: v, assignee_name: a?.name ?? null });
-                }}
-              >
-                <SelectTrigger className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-auto gap-1 focus:ring-0">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Unassigned</SelectItem>
-                  {ASSIGNEES.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <AssigneePicker
+                value={task.assignees}
+                members={members}
+                teams={teams}
+                onAddUsers={(userIds) => onAddAssignees(task.id, { user_ids: userIds })}
+                onAddTeam={(teamId) => onAddAssignees(task.id, { team_id: teamId })}
+                onRemove={(userId) => onRemoveAssignee(task.id, userId)}
+              />
+            </div>
+
+            {/* Reporter */}
+            {task.reporter && (
+              <div className="flex items-center gap-3 py-1.5">
+                <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><User className="h-3.5 w-3.5" />Reporter</span>
+                <span className="text-xs text-foreground flex items-center gap-1.5">
+                  <AssigneeAvatar member={task.reporter} size="xs" />
+                  {task.reporter.full_name}
+                </span>
+              </div>
+            )}
+
+            {/* Followers */}
+            <TaskFollowers taskId={task.id} currentUserId={currentUserId} />
+
+            {/* Estimated Time */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Est. Time</span>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                placeholder="Hours"
+                className="h-7 text-xs border-0 bg-transparent hover:bg-muted/40 px-2 w-24 focus-visible:ring-0"
+                value={task.estimated_hours ?? ""}
+                onChange={(e) => save({ estimated_hours: e.target.value === "" ? null : Number(e.target.value) })}
+              />
+            </div>
+
+            {/* Logged Time */}
+            <div className="flex items-center gap-3 py-1.5">
+              <span className="text-xs text-muted-foreground w-24 shrink-0 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Logged Time</span>
+              <span className="text-xs text-foreground">{task.actual_hours != null ? `${task.actual_hours}h` : "0h"}</span>
             </div>
 
             {/* Linked entity */}
@@ -256,38 +287,17 @@ export function TaskDetailPanel({ task, open, onClose, onUpdate, onDelete, assig
             )}
           </div>
 
-          {/* Comments */}
-          <div className="px-5 py-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Comments</p>
-            <div className="space-y-3 mb-3">
-              {comments.map((c) => (
-                <div key={c.id} className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-bold shrink-0">
-                    {c.author[0]}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-xs font-semibold text-foreground">{c.author} </span>
-                    <span className="text-[10px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-                    <p className="text-sm text-foreground mt-0.5">{c.content}</p>
-                  </div>
-                </div>
-              ))}
-              {comments.length === 0 && (
-                <p className="text-xs text-muted-foreground">No comments yet</p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                className="h-8 text-sm flex-1"
-                placeholder="Write a comment…"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") addComment(); }}
-              />
-              <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-white px-3" onClick={addComment} disabled={!comment.trim()}>
-                <Send className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+          {/* Activity (system events + comments) */}
+          <div className="border-t border-border/50">
+            <TaskActivityFeed
+              taskId={task.id}
+              currentUserId={currentUserId}
+              refreshKey={[
+                task.status, task.priority, task.due_date, task.estimated_hours,
+                task.assignees.map((a) => a.id).join(","),
+                task.labels.map((l) => l.id).join(","),
+              ].join("|")}
+            />
           </div>
         </div>
       </div>

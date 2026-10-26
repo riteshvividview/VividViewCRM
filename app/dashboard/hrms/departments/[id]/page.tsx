@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Users, MoreHorizontal, ArrowRightLeft, UserMinus,
+  ArrowLeft, Users, MoreHorizontal, ArrowRightLeft, UserMinus, UserPlus, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -35,6 +37,15 @@ interface Employee {
   employment_type: string;
   status: string;
   profiles: { full_name: string; avatar_url: string | null } | null;
+}
+
+interface OtherEmployee {
+  id: string;
+  employee_code: string;
+  designation: string;
+  department_id: string | null;
+  profiles: { full_name: string; avatar_url: string | null } | null;
+  hr_departments: { name: string } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -60,6 +71,11 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
   const [moving, setMoving] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Employee | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [otherEmployees, setOtherEmployees] = useState<OtherEmployee[]>([]);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addSearch, setAddSearch] = useState("");
+  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -69,7 +85,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
     const { data: profile } = await supabase.from("profiles").select("workspace_id").eq("user_id", user.id).single();
     if (!profile?.workspace_id) { setLoading(false); return; }
 
-    const [deptRes, empRes, allDeptRes] = await Promise.all([
+    const [deptRes, empRes, allDeptRes, otherEmpRes] = await Promise.all([
       supabase.from("hr_departments")
         .select("id, name, description, parent_department_id, head_employee_id, parent:hr_departments!parent_department_id(name), head:hr_employees!head_employee_id(id, profiles(full_name, avatar_url))")
         .eq("id", id)
@@ -84,6 +100,10 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
         .eq("workspace_id", profile.workspace_id)
         .neq("id", id)
         .order("name"),
+      supabase.from("hr_employees")
+        .select("id, employee_code, designation, department_id, profiles(full_name, avatar_url), hr_departments!department_id(name)")
+        .eq("workspace_id", profile.workspace_id)
+        .order("employee_code"),
     ]);
 
     if (deptRes.error) {
@@ -98,6 +118,9 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
     setDept((deptRes.data ?? null) as unknown as DepartmentDetail | null);
     setEmployees((empRes.data ?? []) as unknown as Employee[]);
     setAllDepartments(allDeptRes.data ?? []);
+    setOtherEmployees(
+      ((otherEmpRes.data ?? []) as unknown as OtherEmployee[]).filter((e) => e.department_id !== id)
+    );
     setLoading(false);
   }
 
@@ -120,6 +143,35 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
       toast.error((e as Error).message ?? "Failed to move employee");
     } finally {
       setMoving(false);
+    }
+  }
+
+  function toggleSelectToAdd(empId: string) {
+    setSelectedToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(empId)) next.delete(empId); else next.add(empId);
+      return next;
+    });
+  }
+
+  async function addEmployees() {
+    if (selectedToAdd.size === 0) return;
+    setAdding(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("hr_employees")
+        .update({ department_id: id })
+        .in("id", Array.from(selectedToAdd));
+      if (error) throw error;
+      toast.success(`${selectedToAdd.size} employee${selectedToAdd.size !== 1 ? "s" : ""} added to ${dept?.name}`);
+      setAddDialogOpen(false);
+      setSelectedToAdd(new Set());
+      setAddSearch("");
+      load();
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to add employees");
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -161,6 +213,13 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
     );
   }
 
+  const addSearchQuery = addSearch.trim().toLowerCase();
+  const filteredOtherEmployees = otherEmployees.filter((e) => {
+    if (!addSearchQuery) return true;
+    return (e.profiles?.full_name ?? "").toLowerCase().includes(addSearchQuery)
+      || e.employee_code.toLowerCase().includes(addSearchQuery);
+  });
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -200,8 +259,14 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
 
       {/* Employee list */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
           <h2 className="font-semibold text-foreground">Employees in this department</h2>
+          <Button
+            size="sm"
+            onClick={() => { setSelectedToAdd(new Set()); setAddSearch(""); setAddDialogOpen(true); }}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />Add Employees
+          </Button>
         </div>
         {employees.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">
@@ -286,6 +351,66 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
             <Button variant="outline" onClick={() => setRemoveTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={removeFromDepartment} disabled={removing}>
               {removing ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add employees dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={(o) => { setAddDialogOpen(o); if (!o) { setSelectedToAdd(new Set()); setAddSearch(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Add Employees to {dept.name}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or employee code…"
+                value={addSearch}
+                onChange={(e) => setAddSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto -mx-1 px-1 space-y-1">
+              {filteredOtherEmployees.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  {otherEmployees.length === 0 ? "No other employees in this workspace." : "No employees match your search."}
+                </p>
+              ) : (
+                filteredOtherEmployees.map((emp) => (
+                  <label
+                    key={emp.id}
+                    htmlFor={`add-emp-${emp.id}`}
+                    className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Checkbox
+                      id={`add-emp-${emp.id}`}
+                      checked={selectedToAdd.has(emp.id)}
+                      onCheckedChange={() => toggleSelectToAdd(emp.id)}
+                    />
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarImage src={emp.profiles?.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-xs bg-indigo-100 text-indigo-700">
+                        {initials(emp.profiles?.full_name ?? "?")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{emp.profiles?.full_name ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{emp.employee_code} · {emp.designation}</p>
+                    </div>
+                    {emp.hr_departments?.name && (
+                      <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                        Currently: {emp.hr_departments.name}
+                      </span>
+                    )}
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button onClick={addEmployees} disabled={adding || selectedToAdd.size === 0}>
+              {adding ? "Adding…" : `Add${selectedToAdd.size > 0 ? ` (${selectedToAdd.size})` : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>

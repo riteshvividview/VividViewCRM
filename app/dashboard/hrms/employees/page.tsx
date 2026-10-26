@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Search, UserPlus, Building2, MoreHorizontal,
+  Search, UserPlus, Building2, MoreHorizontal, Eye, Trash2,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -22,6 +24,7 @@ interface Employee {
   employment_type: string;
   status: string;
   date_of_joining: string;
+  user_id: string | null;
   hr_departments: { name: string } | null;
   profiles: { full_name: string; avatar_url: string | null } | null;
 }
@@ -48,6 +51,8 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
+  const [removeTarget, setRemoveTarget] = useState<Employee | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -60,7 +65,7 @@ export default function EmployeesPage() {
 
       const [empRes, deptRes] = await Promise.all([
         supabase.from("hr_employees")
-          .select("id, employee_code, designation, employment_type, status, date_of_joining, hr_departments!department_id(name), profiles(full_name, avatar_url)")
+          .select("id, employee_code, designation, employment_type, status, date_of_joining, user_id, hr_departments!department_id(name), profiles(full_name, avatar_url)")
           .eq("workspace_id", profile.workspace_id)
           .order("date_of_joining", { ascending: false }),
         supabase.from("hr_departments")
@@ -78,6 +83,23 @@ export default function EmployeesPage() {
     }
     load();
   }, []);
+
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/hrms/employees/${removeTarget.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to remove employee");
+      toast.success(`${removeTarget.profiles?.full_name ?? "Employee"} removed`);
+      setEmployees((prev) => prev.filter((e) => e.id !== removeTarget.id));
+      setRemoveTarget(null);
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to remove employee");
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   const filtered = employees.filter((e) => {
     const name = e.profiles?.full_name?.toLowerCase() ?? "";
@@ -210,9 +232,26 @@ export default function EmployeesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/hrms/employees/${emp.id}`}>
+                                <Eye className="h-3.5 w-3.5 mr-2" />View Profile
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => setRemoveTarget(emp)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />Remove Employee
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   ))}
@@ -239,31 +278,77 @@ export default function EmployeesPage() {
               </div>
             )
           : filtered.map((emp) => (
-              <Link
+              <div
                 key={emp.id}
-                href={`/dashboard/hrms/employees/${emp.id}`}
                 className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-purple-200 dark:hover:border-purple-800 transition-colors"
               >
-                <Avatar className="h-11 w-11 shrink-0">
-                  <AvatarImage src={emp.profiles?.avatar_url ?? undefined} />
-                  <AvatarFallback className="text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 font-semibold">
-                    {initials(emp.profiles?.full_name ?? "?")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-foreground text-sm truncate">
-                    {emp.profiles?.full_name ?? "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {emp.designation} · {emp.hr_departments?.name ?? "—"}
-                  </p>
-                </div>
+                <Link
+                  href={`/dashboard/hrms/employees/${emp.id}`}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                >
+                  <Avatar className="h-11 w-11 shrink-0">
+                    <AvatarImage src={emp.profiles?.avatar_url ?? undefined} />
+                    <AvatarFallback className="text-sm bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 font-semibold">
+                      {initials(emp.profiles?.full_name ?? "?")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground text-sm truncate">
+                      {emp.profiles?.full_name ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {emp.designation} · {emp.hr_departments?.name ?? "—"}
+                    </p>
+                  </div>
+                </Link>
                 <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium capitalize shrink-0", STATUS_COLORS[emp.status] ?? "bg-muted text-muted-foreground")}>
                   {emp.status.replace("_", " ")}
                 </span>
-              </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard/hrms/employees/${emp.id}`}>
+                        <Eye className="h-3.5 w-3.5 mr-2" />View Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-red-600 focus:text-red-600"
+                      onClick={() => setRemoveTarget(emp)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />Remove Employee
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))}
       </div>
+
+      {/* Remove confirm dialog */}
+      <Dialog open={!!removeTarget} onOpenChange={(o) => { if (!o && !removing) setRemoveTarget(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove Employee?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently remove{" "}
+            <span className="font-medium text-foreground">{removeTarget?.profiles?.full_name ?? "this employee"}</span>{" "}
+            from HRMS — their department assignment, attendance, leave and payroll records will be deleted.
+            {removeTarget?.user_id && " Their login will also be disabled so they can no longer access the system."}
+            {" "}This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)} disabled={removing}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmRemove} disabled={removing}>
+              {removing ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

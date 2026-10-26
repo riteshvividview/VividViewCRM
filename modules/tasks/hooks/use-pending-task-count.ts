@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MOCK_TASKS } from "./use-tasks";
-import { api } from "@/lib/api-client";
 
 export function usePendingTaskCount(): number {
   const [count, setCount] = useState(0);
@@ -9,15 +7,12 @@ export function usePendingTaskCount(): number {
   useEffect(() => {
     async function load() {
       try {
-        // Use the NestJS count endpoint (status filter excludes done/cancelled)
-        const result = await api.get<{ total: number }>("/tasks", {
-          status: "todo,in_progress,in_review,blocked,waiting",
-          limit: 1,
-        });
-        setCount((result as { total: number }).total ?? 0);
+        const res = await fetch("/api/tasks?status=todo,in_progress,waiting&limit=500");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Request failed");
+        setCount((json.items ?? []).length);
       } catch {
-        // Fallback: count from mock data
-        setCount(MOCK_TASKS.filter((t) => t.status !== "done").length);
+        setCount(0);
       }
     }
     load();

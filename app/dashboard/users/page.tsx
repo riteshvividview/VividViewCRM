@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Shield, UserRound, Loader2, MoreHorizontal, UserX, UserCheck,
-  Puzzle,
+  Puzzle, Trash2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MODULES } from "@/lib/rbac/modules";
@@ -55,6 +55,8 @@ export default function UsersPage() {
   const [moduleData, setModuleData] = useState<{ module_id: string; label: string; group: string; isDefault: boolean; isGranted: boolean }[]>([]);
   const [modulesGranted, setModulesGranted] = useState<Set<string>>(new Set());
   const [modulesSaving, setModulesSaving] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<UserRow | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -151,6 +153,23 @@ export default function UsersPage() {
     }
   }
 
+  async function confirmRemove() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/users/${removeTarget.id}/remove`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to remove employee");
+      toast.success(`${removeTarget.full_name || removeTarget.email} removed`);
+      setUsers((prev) => prev.map((u) => u.id === removeTarget.id ? { ...u, disabled: true } : u));
+      setRemoveTarget(null);
+    } catch (e: unknown) {
+      toast.error((e as Error).message ?? "Failed to remove employee");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -238,6 +257,7 @@ export default function UsersPage() {
                             onRoleChange={handleRoleChange}
                             onToggleDisabled={handleToggleDisabled}
                             onManageModules={openModulesDialog}
+                            onRemove={setRemoveTarget}
                           />
                         </td>
                       </tr>
@@ -282,6 +302,7 @@ export default function UsersPage() {
                       onRoleChange={handleRoleChange}
                       onToggleDisabled={handleToggleDisabled}
                       onManageModules={openModulesDialog}
+                      onRemove={setRemoveTarget}
                     />
                   </div>
                 );
@@ -422,6 +443,27 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove confirm dialog */}
+      <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open && !removing) setRemoveTarget(null); }}>
+        <DialogContent className="w-full sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove Employee?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently remove{" "}
+            <span className="font-medium text-foreground">{removeTarget?.full_name || removeTarget?.email}</span>{" "}
+            from HRMS — their department assignment, attendance, leave and payroll records (if any) will be deleted,
+            and their login will be disabled so they can no longer access the system. This cannot be undone.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setRemoveTarget(null)} disabled={removing}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmRemove} disabled={removing}>
+              {removing ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -431,11 +473,13 @@ function UserActionsMenu({
   onRoleChange,
   onToggleDisabled,
   onManageModules,
+  onRemove,
 }: {
   user: UserRow;
   onRoleChange: (id: string, role: UserRole) => void;
   onToggleDisabled: (id: string, disabled: boolean) => void;
   onManageModules: (user: UserRow) => void;
+  onRemove: (user: UserRow) => void;
 }) {
   return (
     <DropdownMenu>
@@ -472,6 +516,13 @@ function UserActionsMenu({
             ? <><UserCheck className="h-4 w-4 mr-2" />Reactivate</>
             : <><UserX className="h-4 w-4 mr-2" />Deactivate</>
           }
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-red-600 focus:text-red-600"
+          onClick={() => onRemove(user)}
+        >
+          <Trash2 className="h-4 w-4 mr-2" />Remove Employee
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

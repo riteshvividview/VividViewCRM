@@ -101,6 +101,19 @@ function initials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+// Inclusive list of YYYY-MM-DD dates between two date-only strings, computed in UTC
+// to avoid local-timezone drift when stepping day by day.
+function dateRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+  let cur = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cur <= end) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
+}
+
 // ── Balance Card ──────────────────────────────────────────────────────────────
 function BalanceCard({ balance }: { balance: LeaveBalance }) {
   const total = Number(balance.total_days);
@@ -438,6 +451,25 @@ export default function LeavesPage() {
 
     const { error } = await supabase.from("hr_leave_applications").update(update).eq("id", id);
     if (error) { toast.error("Action failed"); return; }
+
+    // Keep hr_attendance in sync so "On Leave" stats/records reflect approved leave days
+    const leave = allLeaves.find((l) => l.id === id);
+    const empId = leave?.hr_employees?.id;
+    if (leave && empId && workspaceId) {
+      const dates = dateRange(leave.from_date, leave.to_date);
+      if (action === "approve") {
+        await supabase.from("hr_attendance").upsert(
+          dates.map((date) => ({ workspace_id: workspaceId, employee_id: empId, date, status: "on_leave" })),
+          { onConflict: "employee_id,date" }
+        );
+      } else if (action === "cancel") {
+        await supabase.from("hr_attendance")
+          .delete()
+          .eq("employee_id", empId)
+          .eq("status", "on_leave")
+          .in("date", dates);
+      }
+    }
 
     toast.success(
       action === "approve" ? "Leave approved" :
