@@ -1,30 +1,36 @@
 "use client";
 
-import { Check, Clock, RefreshCw, CheckSquare, Flag } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faComment } from "@fortawesome/free-regular-svg-icons";
+import { faPaperclip, faRepeat, faCheck } from "@fortawesome/free-solid-svg-icons";
 import type { Task } from "../types";
-import { PRIORITY_CONFIG } from "../types";
-import { AssigneeAvatar } from "./assignee-picker";
 import { cn } from "@/lib/utils";
-import { formatMinutes, todayISO } from "../dates";
+import { cardColor, dueLabel, initials } from "../lib/bordio";
+import { PriorityChip } from "./task-icons";
 
 export const TASK_DRAG_TYPE = "application/x-vivid-task";
 
 interface TaskCardProps {
   task: Task;
   onOpen: (task: Task) => void;
-  onToggleDone: (task: Task) => void;
-  /** Hide the project chip (e.g. inside a project board). */
+  onToggleDone?: (task: Task) => void;
+  /** Kept for API compatibility; Bordio cards never show the project. */
   hideProject?: boolean;
+  /** Smaller card (team grid). */
   compact?: boolean;
   draggable?: boolean;
 }
 
-/** Bordio-style task card: colour accent, one-click complete, meta row. Draggable via TASK_DRAG_TYPE. */
-export function TaskCard({ task, onOpen, onToggleDone, hideProject, compact, draggable = true }: TaskCardProps) {
+/**
+ * Bordio card: solid type-coloured card (red when overdue, grey when done) with
+ * an assignee initials badge, bold title, priority chip, due text and
+ * comment / attachment counters.
+ */
+export function TaskCard({ task, onOpen, onToggleDone, compact, draggable = true }: TaskCardProps) {
   const done = task.status === "done";
-  const accent = task.color ?? task.project?.color ?? null;
-  const subDone = task.sub_tasks.filter((s) => s.checked).length;
-  const overdue = !done && task.due_date && task.due_date < todayISO();
+  const bg = cardColor(task);
+  const due = dueLabel(task);
+  const assignee = task.assignees[0];
 
   return (
     <div
@@ -36,54 +42,54 @@ export function TaskCard({ task, onOpen, onToggleDone, hideProject, compact, dra
       }}
       onClick={() => onOpen(task)}
       className={cn(
-        "group relative rounded-lg border bg-card px-2.5 py-2 text-sm shadow-[0_1px_0_rgba(0,0,0,0.03)] cursor-pointer select-none",
-        "hover:border-foreground/20 hover:shadow-sm transition-all",
-        done && "opacity-60",
+        "group relative cursor-pointer select-none rounded-[10px] text-white shadow-sm transition-[transform,box-shadow,filter]",
+        "hover:shadow-md hover:brightness-110 active:scale-[0.99]",
+        compact ? "px-2.5 py-2" : "px-3 py-2.5",
+        done && "text-white/70",
       )}
-      style={accent ? { borderLeft: `3px solid ${accent}` } : undefined}
+      style={{ backgroundColor: bg }}
     >
       <div className="flex items-start gap-2">
-        <button
-          aria-label={done ? "Mark as not done" : "Mark as done"}
-          onClick={(e) => { e.stopPropagation(); onToggleDone(task); }}
+        <span
+          title={assignee?.full_name ?? "Unassigned"}
           className={cn(
-            "mt-0.5 h-4 w-4 shrink-0 rounded-full border flex items-center justify-center transition-colors",
-            done ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground/40 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30",
+            "mt-px flex shrink-0 items-center justify-center rounded-full bg-black/25 font-semibold tracking-wide text-white/90",
+            compact ? "h-5 w-5 text-[9px]" : "h-6 w-6 text-[10px]",
           )}
         >
-          {done && <Check className="h-3 w-3" strokeWidth={3} />}
-        </button>
-        <p className={cn("flex-1 leading-snug break-words", done && "line-through text-muted-foreground")}>{task.title}</p>
+          {initials(assignee?.full_name)}
+        </span>
+        <p className={cn("flex-1 break-words font-semibold leading-snug", compact ? "text-[12px]" : "text-[13px]", done && "font-medium")}>
+          {task.title}
+        </p>
+        {onToggleDone && (
+          <button
+            aria-label={done ? "Mark as not done" : "Mark as done"}
+            onClick={(e) => { e.stopPropagation(); onToggleDone(task); }}
+            className={cn(
+              "mt-px flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-white/50 transition-opacity",
+              done ? "bg-white/25 opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-white/20",
+            )}
+          >
+            <FontAwesomeIcon icon={faCheck} className="h-2.5 w-2.5" />
+          </button>
+        )}
       </div>
 
-      {!compact && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 pl-6 text-[11px] text-muted-foreground">
-          {!hideProject && task.project && (
-            <span className="inline-flex items-center gap-1 truncate max-w-[120px]">
-              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: task.project.color ?? "#6366f1" }} />
-              {task.project.name}
-            </span>
-          )}
-          {(task.priority === "high" || task.priority === "urgent") && (
-            <span className={cn("inline-flex items-center gap-0.5", PRIORITY_CONFIG[task.priority].color)}><Flag className="h-3 w-3" />{PRIORITY_CONFIG[task.priority].label}</span>
-          )}
-          {task.estimated_hours ? <span className="inline-flex items-center gap-0.5"><Clock className="h-3 w-3" />{formatMinutes(task.estimated_hours * 60)}</span> : null}
-          {task.sub_tasks.length > 0 && <span className="inline-flex items-center gap-0.5"><CheckSquare className="h-3 w-3" />{subDone}/{task.sub_tasks.length}</span>}
-          {task.recurring_pattern && <RefreshCw className="h-3 w-3" aria-label="Repeats" />}
-          {task.due_date && (
-            <span className={cn(overdue && "text-red-600 font-medium")}>
-              Due {new Date(`${task.due_date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-            </span>
-          )}
-          {task.labels.slice(0, 2).map((l) => (
-            <span key={l.id} className="rounded px-1.5 py-px text-[10px] font-medium" style={{ backgroundColor: `${l.color}22`, color: l.color }}>{l.name}</span>
-          ))}
-          {task.assignees.length > 0 && (
-            <span className="ml-auto flex -space-x-1.5">
-              {task.assignees.slice(0, 3).map((a) => <AssigneeAvatar key={a.id} member={a} size="xs" />)}
-              {task.assignees.length > 3 && <span className="text-[10px] pl-2">+{task.assignees.length - 3}</span>}
-            </span>
-          )}
+      {!compact && !done && task.priority !== "none" && <PriorityChip priority={task.priority} className="mt-2" />}
+
+      {(due || task.comment_count > 0 || task.attachment_count > 0 || task.recurring_pattern) && (
+        <div className={cn("flex items-center gap-2.5 text-white/75", compact ? "mt-1.5 text-[10px]" : "mt-2 text-[11.5px]")}>
+          {due && <span className="truncate">{due}</span>}
+          <span className="ml-auto flex items-center gap-2.5">
+            {task.recurring_pattern && <FontAwesomeIcon icon={faRepeat} className="h-3 w-3" title="Repeats" />}
+            {task.comment_count > 0 && (
+              <span className="inline-flex items-center gap-1"><FontAwesomeIcon icon={faComment} className="h-3 w-3" />{task.comment_count}</span>
+            )}
+            {task.attachment_count > 0 && (
+              <span className="inline-flex items-center gap-1"><FontAwesomeIcon icon={faPaperclip} className="h-3 w-3" />{task.attachment_count}</span>
+            )}
+          </span>
         </div>
       )}
     </div>

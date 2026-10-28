@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Inbox, CalendarPlus, PanelRightClose, PanelRightOpen, AlertCircle, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Inbox, CalendarPlus, PanelRightClose, PanelRightOpen, AlertCircle, Video, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,10 +41,10 @@ function InlineAdd({ onAdd, placeholder = "Add task" }: { onAdd: (title: string)
 }
 
 /** Bordio-style weekly planner: 7 day columns, drag & drop, inline add, events, waiting list. */
-export function WeeklyPlanner() {
+export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: string; title?: string } = {}) {
   const { tasks, loading, members, teams, currentUserId, addTask, updateTask, openTask, openQuickAdd } = useTasksContext();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const [scope, setScope] = useState<Scope>("me");
+  const [scope, setScope] = useState<Scope>(projectId ? "all" : "me");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [eventDialog, setEventDialog] = useState<{ event: CalendarEvent | null; draft: EventDraft | null } | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -65,8 +65,10 @@ export function WeeklyPlanner() {
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
   const visible = useMemo(
-    () => tasks.filter((t) => !scopeUser || t.assignees.some((a) => a.id === scopeUser) || (t.assignees.length === 0 && t.created_by === scopeUser)),
-    [tasks, scopeUser],
+    () => tasks.filter((t) =>
+      (!projectId || t.project_id === projectId) &&
+      (!scopeUser || t.assignees.some((a) => a.id === scopeUser) || (t.assignees.length === 0 && t.created_by === scopeUser))),
+    [tasks, scopeUser, projectId],
   );
 
   const byDay = useMemo(() => {
@@ -113,13 +115,13 @@ export function WeeklyPlanner() {
   });
 
   const createFor = (plannedDate: string | null) => (title: string) =>
-    addTask({ title, planned_date: plannedDate, assignee_ids: scopeUser ? [scopeUser] : undefined });
+    addTask({ title, planned_date: plannedDate, project_id: projectId ?? null, assignee_ids: scopeUser ? [scopeUser] : undefined });
 
   return (
     <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[520px]">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 pb-3">
-        <h1 className="text-lg font-semibold mr-2">Planner</h1>
+        <h1 className="text-lg font-semibold mr-2">{title}</h1>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addDays(w, -7))}><ChevronLeft className="h-4 w-4" /></Button>
@@ -127,14 +129,14 @@ export function WeeklyPlanner() {
         </div>
         <span className="text-sm font-medium">{formatWeekRange(weekStart)}</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Select value={scope} onValueChange={setScope}>
+          {!projectId && <Select value={scope} onValueChange={setScope}>
             <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="me">My tasks</SelectItem>
               <SelectItem value="all">Everyone</SelectItem>
               {members.filter((m) => m.id !== currentUserId).map((m) => <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>)}
             </SelectContent>
-          </Select>
+          </Select>}
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />Show done
           </label>
@@ -144,7 +146,7 @@ export function WeeklyPlanner() {
           }}>
             <CalendarPlus className="h-4 w-4 mr-1.5" />Event
           </Button>
-          <Button size="sm" className="h-8" onClick={() => openQuickAdd({ planned_date: today })}><Plus className="h-4 w-4 mr-1.5" />Task</Button>
+          <Button size="sm" className="h-8" onClick={() => openQuickAdd({ planned_date: today, project_id: projectId })}><Plus className="h-4 w-4 mr-1.5" />Task</Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" title={showWaiting ? "Hide waiting list" : "Show waiting list"} onClick={() => setShowWaiting((v) => !v)}>
             {showWaiting ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
           </Button>
@@ -167,7 +169,7 @@ export function WeeklyPlanner() {
                   key={iso}
                   {...dropProps(iso, iso)}
                   className={cn(
-                    "flex flex-col min-h-0 rounded-xl border bg-muted/30 transition-colors",
+                    "group/day flex flex-col min-h-0 rounded-xl border bg-muted/30 transition-colors",
                     isToday && "border-primary/40 bg-primary/[0.03]",
                     dragOver === iso && "ring-2 ring-primary/40 bg-primary/5",
                   )}
@@ -205,6 +207,14 @@ export function WeeklyPlanner() {
                     ))}
                     {loading && list.length === 0 && [0, 1].map((i) => <div key={i} className="h-14 rounded-lg bg-muted/60 animate-pulse" />)}
                     {list.map((t) => <TaskCard key={t.id} task={t} onOpen={openTask} onToggleDone={toggleDone} />)}
+                    {list.length === 0 && dayEvents.length === 0 && (
+                      <div className="flex justify-center gap-3 py-6 opacity-0 transition-opacity group-hover/day:opacity-100">
+                        <button title="Add task" onClick={() => openQuickAdd({ planned_date: iso, project_id: projectId })}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border text-muted-foreground hover:border-foreground/40 hover:text-foreground"><Check className="h-4 w-4" /></button>
+                        <button title="Add event" onClick={() => { const s = new Date(`${iso}T10:00`); setEventDialog({ event: null, draft: { start: s, end: new Date(s.getTime() + 3600_000) } }); }}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border text-muted-foreground hover:border-foreground/40 hover:text-foreground"><CalendarPlus className="h-4 w-4" /></button>
+                      </div>
+                    )}
                     <InlineAdd onAdd={createFor(iso)} />
                   </div>
                 </section>

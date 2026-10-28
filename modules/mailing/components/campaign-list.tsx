@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { MoreHorizontal, Play, Pause, Trash2, BarChart2, Copy, ExternalLink } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -38,7 +40,7 @@ export function CampaignList({ campaigns, onEdit, onAnalytics, onDelete, onDupli
   if (campaigns.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-3 text-2xl">📧</div>
+        <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-3"><FontAwesomeIcon icon={faEnvelope} className="h-6 w-6 text-muted-foreground" /></div>
         <p className="text-sm font-medium text-foreground">No campaigns yet</p>
         <p className="text-xs text-muted-foreground mt-1">Create your first campaign to get started</p>
       </div>

@@ -8,6 +8,8 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Trash2, Plus, AlignLeft, AlignCenter, AlignRight, Code2 } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -247,7 +249,7 @@ export function EmailBuilder({ blocks, onChange, showHtmlMode = true }: EmailBui
             onClick={() => addBlock(p.type)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-card border border-border hover:border-purple-300 dark:hover:border-purple-700 hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-all text-left group"
           >
-            <span className="text-base">{p.icon}</span>
+            <FontAwesomeIcon icon={p.icon} className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium text-foreground">{p.label}</span>
             <Plus className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
@@ -280,7 +282,7 @@ export function EmailBuilder({ blocks, onChange, showHtmlMode = true }: EmailBui
               <SortableContext items={blocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
                 {blocks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-sm text-muted-foreground gap-2">
-                    <span className="text-3xl">📧</span>
+                    <FontAwesomeIcon icon={faEnvelope} className="h-8 w-8" />
                     <p>Add blocks from the palette to start building</p>
                   </div>
                 ) : (

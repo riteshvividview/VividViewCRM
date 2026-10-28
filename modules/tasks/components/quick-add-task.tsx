@@ -1,53 +1,93 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Flag, CalendarDays, User, FolderKanban, CalendarClock, Clock } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCalendar, faClock, faSquare } from "@fortawesome/free-regular-svg-icons";
+import { faArrowsRotate, faListCheck, faPaperclip, faXmark, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { TaskPriority, TaskMember, TaskTeam, TaskProjectListItem } from "../types";
-import { PRIORITY_CONFIG } from "../types";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import type { TaskPriority, TaskMember, TaskTeam, TaskProjectListItem, TaskType, TaskLabel, BoardColumn, RecurringPattern, TaskStatus, Task } from "../types";
+import { RECURRING_OPTIONS, STATUS_CONFIG } from "../types";
 import { AssigneePicker } from "./assignee-picker";
+import { TagPicker, TagChips } from "./tag-picker";
+import { RichTextEditor } from "./rich-text-editor";
 import type { AddTaskInput } from "../hooks/use-tasks";
+import { initials } from "../lib/bordio";
+import { PriorityLabel } from "./task-icons";
+import { todayISO } from "../dates";
 import { cn } from "@/lib/utils";
 
 interface QuickAddTaskProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (t: AddTaskInput) => void | Promise<void>;
+  onAdd: (t: AddTaskInput) => Promise<Task | null | void>;
   members: TaskMember[];
   teams: TaskTeam[];
   projects: TaskProjectListItem[];
-  /** Pre-filled values, e.g. the planner day or project the user added from. */
+  types?: TaskType[];
+  labels?: TaskLabel[];
+  currentUserId?: string | null;
   defaults?: Partial<AddTaskInput>;
+  onLabelCreated?: (label: TaskLabel) => void;
 }
 
 const NONE = "__none__";
+const PRIORITIES: TaskPriority[] = ["none", "low", "medium", "high", "urgent"];
+const trigger = "h-8 w-full justify-start gap-2 border-0 bg-transparent px-1 text-[13px] font-medium hover:bg-muted focus:ring-0 [&>svg:last-child]:hidden";
 
-export function QuickAddTask({ open, onClose, onAdd, members, teams, projects, defaults = {} }: QuickAddTaskProps) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div><p className="mb-0.5 text-xs text-muted-foreground">{label}</p>{children}</div>;
+}
+
+/** Bordio "Create task" dialog (also opened by the T shortcut). */
+export function QuickAddTask({ open, onClose, onAdd, members, teams, projects, types = [], labels = [], currentUserId, defaults = {}, onLabelCreated }: QuickAddTaskProps) {
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [plannedDate, setPlannedDate] = useState("");
+  const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState("");
-  const [estimate, setEstimate] = useState("");
+  const [typeId, setTypeId] = useState("");
+  const [status, setStatus] = useState<TaskStatus>("todo");
+  const [columnId, setColumnId] = useState("");
+  const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [assignees, setAssignees] = useState<TaskMember[]>([]);
+  const [planned, setPlanned] = useState<string>("");
+  const [estimate, setEstimate] = useState("");
+  const [due, setDue] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("none");
+  const [repeat, setRepeat] = useState<string>("");
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [subInput, setSubInput] = useState<string | null>(null);
+  const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
+  // Reset everything whenever the dialog opens or closes, so nothing leaks into the next task.
   useEffect(() => {
-    if (open) {
-      setTitle("");
-      setPriority((defaults.priority as TaskPriority) ?? "medium");
-      setDueDate(defaults.due_date ?? "");
-      setPlannedDate(defaults.planned_date ?? "");
-      setProjectId(defaults.project_id ?? "");
-      setEstimate("");
-      setAssignees(members.filter((m) => defaults.assignee_ids?.includes(m.id)));
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (!open) { setAssignees([]); setLabelIds([]); setFiles([]); setSubtasks([]); return; }
+    setTitle(""); setDescription(""); setEstimate(""); setRepeat(""); setSubtasks([]); setSubInput(null); setLabelIds([]); setFiles([]);
+    setProjectId(defaults.project_id ?? "");
+    setTypeId(defaults.type_id ?? "");
+    setColumnId(defaults.board_column_id ?? "");
+    setStatus((defaults.status as TaskStatus) ?? "todo");
+    setPlanned(defaults.planned_date === undefined ? todayISO() : defaults.planned_date ?? "");
+    setDue(defaults.due_date ?? "");
+    setPriority((defaults.priority as TaskPriority) ?? "none");
+    // Every new task starts unassigned unless the caller pre-selects someone (e.g. a Team row).
+    setAssignees(defaults.assignee_ids?.length ? members.filter((m) => defaults.assignee_ids!.includes(m.id)) : []);
+    setTimeout(() => titleRef.current?.focus(), 50);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    setColumns([]);
+    if (!projectId) return;
+    fetch(`/api/tasks/projects/${projectId}`).then((r) => r.json()).then((j) => {
+      setColumns(j.columns ?? []);
+      setColumnId((cur) => (j.columns ?? []).some((c: BoardColumn) => c.id === cur) ? cur : j.columns?.[0]?.id ?? "");
+    }).catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && open) onClose(); };
@@ -55,107 +95,194 @@ export function QuickAddTask({ open, onClose, onAdd, members, teams, projects, d
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  function addUsers(userIds: string[]) {
-    setAssignees((prev) => {
-      const existing = new Set(prev.map((m) => m.id));
-      return [...prev, ...members.filter((m) => userIds.includes(m.id) && !existing.has(m.id))];
-    });
-  }
-
-  async function handleSubmit() {
+  async function submit() {
     if (!title.trim() || saving) return;
     setSaving(true);
-    await onAdd({
+    const created = await onAdd({
       title: title.trim(),
-      priority,
-      due_date: dueDate || null,
-      planned_date: plannedDate || null,
+      description,
       project_id: projectId || null,
-      board_column_id: defaults.board_column_id ?? null,
+      board_column_id: projectId ? columnId || null : null,
+      status: projectId ? undefined : status,
+      type_id: typeId || null,
+      planned_date: planned || null,
+      due_date: due || null,
+      priority,
       estimated_hours: estimate ? Number(estimate) : null,
+      recurring_pattern: (repeat || null) as RecurringPattern,
+      sub_tasks: subtasks.map((t) => ({ id: crypto.randomUUID(), title: t, checked: false })),
+      label_ids: labelIds,
       assignee_ids: assignees.map((m) => m.id),
+      assign_to_me: false,
     });
+    if (created && files.length) {
+      const form = new FormData();
+      files.forEach((f) => form.append("file", f));
+      const res = await fetch(`/api/tasks/${created.id}/attachments`, { method: "POST", body: form });
+      if (!res.ok) toast.error("Task created, but files could not be uploaded");
+    }
     setSaving(false);
-    onClose();
+    if (created !== null) { setAssignees([]); setLabelIds([]); onClose(); }
   }
 
   if (!open) return null;
+  const type = types.find((t) => t.id === typeId);
+  const column = columns.find((c) => c.id === columnId);
 
   return (
-    <div className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-start sm:items-center justify-center p-4 pt-24 sm:pt-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <h3 className="text-sm font-semibold text-foreground">New task</h3>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}><X className="h-4 w-4" /></Button>
-        </div>
-        <div className="px-4 pb-4 space-y-3">
-          <Input
-            ref={inputRef}
-            className="h-11 text-base"
-            placeholder="What needs to be done?"
-            value={title}
-            maxLength={500}
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[6vh]" onClick={onClose}>
+      <div className="flex w-full max-w-[880px] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl md:flex-row" onClick={(e) => e.stopPropagation()}>
+        {/* Left */}
+        <div className="flex min-w-0 flex-1 flex-col p-7">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[22px] font-bold">Create task</h2>
+            <Select value={repeat || NONE} onValueChange={(v) => setRepeat(v === NONE ? "" : v)}>
+              <SelectTrigger className="h-8 w-auto gap-1.5 border-0 bg-transparent px-2 text-[13px] text-muted-foreground hover:bg-muted focus:ring-0 [&>svg:last-child]:hidden">
+                <FontAwesomeIcon icon={faArrowsRotate} className="h-3.5 w-3.5" />{RECURRING_OPTIONS.find((o) => o.value === repeat)?.label ?? "Set repeats"}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>Does not repeat</SelectItem>
+                {RECURRING_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <input
+            ref={titleRef} value={title} maxLength={500} placeholder="Task name"
             onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
+            className="mb-3 h-11 w-full rounded-lg border bg-background px-3 text-[15px] font-medium focus:border-primary/60 focus:outline-none"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <label className="relative">
-              <CalendarClock className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-              <Input type="date" title="Planned for" className="h-8 text-xs pl-7" value={plannedDate} onChange={(e) => setPlannedDate(e.target.value)} />
-              <span className="absolute right-8 top-2 text-[10px] text-muted-foreground pointer-events-none">{plannedDate ? "" : "Plan"}</span>
-            </label>
-            <label className="relative">
-              <CalendarDays className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-              <Input type="date" title="Due date" className="h-8 text-xs pl-7" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              <span className="absolute right-8 top-2 text-[10px] text-muted-foreground pointer-events-none">{dueDate ? "" : "Due"}</span>
-            </label>
-            <Select value={projectId || NONE} onValueChange={(v) => setProjectId(v === NONE ? "" : v)}>
-              <SelectTrigger className="h-8 text-xs">
-                <span className="flex items-center gap-1.5 truncate"><FolderKanban className="h-3.5 w-3.5 text-muted-foreground" /><SelectValue placeholder="No project" /></span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>No project</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color ?? "#6366f1" }} />{p.name}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
-              <SelectTrigger className="h-8 text-xs">
-                <span className={cn("flex items-center gap-1.5", PRIORITY_CONFIG[priority].color)}><Flag className="h-3 w-3" />{PRIORITY_CONFIG[priority].label}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map((p) => (
-                  <SelectItem key={p} value={p}><span className={cn("flex items-center gap-2", PRIORITY_CONFIG[p].color)}><Flag className="h-3.5 w-3.5" />{PRIORITY_CONFIG[p].label}</span></SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0"><Clock className="h-3.5 w-3.5" />Estimate</span>
-            <Input type="number" min="0" step="0.25" placeholder="hours" className="h-8 w-24 text-xs" value={estimate} onChange={(e) => setEstimate(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0"><User className="h-3.5 w-3.5" />Assign</span>
-            <AssigneePicker
-              value={assignees} members={members} teams={teams}
-              onAddUsers={addUsers}
-              onAddTeam={(teamId) => addUsers(teams.find((t) => t.id === teamId)?.member_ids ?? [])}
-              onRemove={(userId) => setAssignees((prev) => prev.filter((m) => m.id !== userId))}
+          <RichTextEditor value={description} onChange={setDescription} placeholder="Add a description…" minHeight={160} />
+
+          {subtasks.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {subtasks.map((s, i) => (
+                <div key={i} className="group flex items-center gap-2 text-[13px]">
+                  <FontAwesomeIcon icon={faSquare} className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex-1">{s}</span>
+                  <button className="opacity-0 group-hover:opacity-60" onClick={() => setSubtasks((x) => x.filter((_, j) => j !== i))}><FontAwesomeIcon icon={faXmark} className="h-3 w-3" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          {subInput !== null && (
+            <input autoFocus value={subInput} placeholder="Subtask name, Enter to add"
+              onChange={(e) => setSubInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && subInput.trim()) { setSubtasks((x) => [...x, subInput.trim()]); setSubInput(""); } if (e.key === "Escape") setSubInput(null); }}
+              onBlur={() => { if (subInput.trim()) setSubtasks((x) => [...x, subInput.trim()]); setSubInput(null); }}
+              className="mt-2 h-8 w-full rounded-md border bg-background px-2 text-[13px] focus:outline-none" />
+          )}
+          {files.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {files.map((f, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-xs">
+                  <FontAwesomeIcon icon={faPaperclip} className="h-3 w-3" />{f.name}
+                  <button onClick={() => setFiles((x) => x.filter((_, j) => j !== i))}><FontAwesomeIcon icon={faXmark} className="h-3 w-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          {labelIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <TagChips labels={labels.filter((l) => labelIds.includes(l.id))} onRemove={(id) => setLabelIds((x) => x.filter((y) => y !== id))} />
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" className="h-8 gap-1.5 text-[13px]" onClick={() => setSubInput("")}><FontAwesomeIcon icon={faListCheck} className="h-3.5 w-3.5" />Add subtask</Button>
+            <Button variant="secondary" size="sm" className="h-8 gap-1.5 text-[13px]" onClick={() => fileRef.current?.click()}><FontAwesomeIcon icon={faPaperclip} className="h-3.5 w-3.5" />Attach file</Button>
+            <TagPicker
+              labels={labels} selectedIds={labelIds}
+              onToggle={(id, on) => setLabelIds((x) => (on ? (x.includes(id) ? x : [...x, id]) : x.filter((y) => y !== id)))}
+              onCreated={(l) => onLabelCreated?.(l)}
             />
-            {assignees.length === 0 && <span className="text-[11px] text-muted-foreground">Defaults to you</span>}
+            <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) setFiles((x) => [...x, ...Array.from(e.target.files!)]); e.target.value = ""; }} />
           </div>
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" onClick={handleSubmit} disabled={!title.trim() || saving}>{saving ? "Adding…" : "Add task"}</Button>
+
+          <div className="mt-auto flex items-center justify-end gap-3 border-t pt-5 md:mt-8">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button className="bg-sky-500 px-6 text-white hover:bg-sky-600" onClick={submit} disabled={!title.trim() || saving}>
+              {saving && <FontAwesomeIcon icon={faSpinner} spin className="mr-2 h-3.5 w-3.5" />}Create task
+            </Button>
           </div>
         </div>
-        <div className="px-4 pb-3 border-t border-border/50 pt-2">
-          <p className="text-[10px] text-muted-foreground">
-            <kbd className="px-1 py-0.5 bg-muted rounded">Enter</kbd> to save · <kbd className="px-1 py-0.5 bg-muted rounded">Esc</kbd> to cancel · <kbd className="px-1 py-0.5 bg-muted rounded">T</kbd> anywhere to add a task
-          </p>
+
+        {/* Right: properties */}
+        <div className="w-full shrink-0 space-y-3 border-t bg-muted/20 p-6 md:w-[260px] md:border-l md:border-t-0">
+          <Field label="Create in">
+            <Select value={projectId || NONE} onValueChange={(v) => setProjectId(v === NONE ? "" : v)}>
+              <SelectTrigger className={trigger}>
+                {projectId ? <><span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">{initials(projects.find((p) => p.id === projectId)?.name)}</span>{projects.find((p) => p.id === projectId)?.name}</> : "My tasks (no project)"}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>My tasks (no project)</SelectItem>
+                {projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Type">
+            <Select value={typeId || NONE} onValueChange={(v) => setTypeId(v === NONE ? "" : v)}>
+              <SelectTrigger className={trigger}>{type ? <><span className="h-4 w-4 rounded" style={{ backgroundColor: type.color }} />{type.name}</> : "No type"}</SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>No type</SelectItem>
+                {types.map((t) => <SelectItem key={t.id} value={t.id}><span className="flex items-center gap-2"><span className="h-3 w-3 rounded" style={{ backgroundColor: t.color }} />{t.name}</span></SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Status">
+            {columns.length > 0 ? (
+              <Select value={columnId} onValueChange={setColumnId}>
+                <SelectTrigger className={trigger}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: column?.color ?? "#94a3b8" }} />{column?.name}</SelectTrigger>
+                <SelectContent>{columns.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : (
+              <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
+                <SelectTrigger className={trigger}><span className={cn("h-2.5 w-2.5 rounded-full", STATUS_CONFIG[status].dot)} />{STATUS_CONFIG[status].label}</SelectTrigger>
+                <SelectContent>{(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((s) => <SelectItem key={s} value={s}>{STATUS_CONFIG[s].label}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+          </Field>
+          <Field label="Assignee">
+            <div className="flex items-center gap-2 px-1">
+              <AssigneePicker value={assignees} members={members} teams={teams}
+                onAddUsers={(ids) => setAssignees((p) => [...p, ...members.filter((m) => ids.includes(m.id) && !p.some((x) => x.id === m.id))])}
+                onAddTeam={(tid) => { const t = teams.find((x) => x.id === tid); if (t) setAssignees((p) => [...p, ...members.filter((m) => t.member_ids.includes(m.id) && !p.some((x) => x.id === m.id))]); }}
+                onRemove={(id) => setAssignees((p) => p.filter((m) => m.id !== id))} />
+              {assignees.length === 0 && <span className="text-[13px] text-muted-foreground">Unassigned</span>}
+            </div>
+          </Field>
+          <Field label="Schedule this task for">
+            <label className="flex h-8 cursor-pointer items-center gap-2 rounded px-1 text-[13px] font-medium hover:bg-muted">
+              <FontAwesomeIcon icon={faCalendar} className="h-3.5 w-3.5 text-muted-foreground" />
+              <input type="date" value={planned} onChange={(e) => setPlanned(e.target.value)} className="flex-1 bg-transparent focus:outline-none" />
+            </label>
+            <button className="px-1 text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setPlanned("")}>
+              {planned ? (planned === todayISO() ? "Today · " : "") + "Move to waiting list" : "In waiting list"}
+            </button>
+          </Field>
+          <Field label="Estimated time">
+            <label className="flex h-8 items-center gap-2 rounded px-1 text-[13px] font-medium hover:bg-muted">
+              <FontAwesomeIcon icon={faClock} className="h-3.5 w-3.5 text-muted-foreground" />
+              <input type="number" min={0} step={0.25} placeholder="0" value={estimate} onChange={(e) => setEstimate(e.target.value)} className="w-14 bg-transparent focus:outline-none" />h
+            </label>
+          </Field>
+          <Field label="Due date">
+            <label className="flex h-8 cursor-pointer items-center gap-2 rounded px-1 text-[13px] font-medium hover:bg-muted">
+              <FontAwesomeIcon icon={faCalendar} className="h-3.5 w-3.5 text-muted-foreground" />
+              <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="flex-1 bg-transparent focus:outline-none" />
+            </label>
+          </Field>
+          <Field label="Priority">
+            <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
+              <SelectTrigger className={trigger}><PriorityLabel priority={priority} /></SelectTrigger>
+              <SelectContent>{PRIORITIES.map((p) => <SelectItem key={p} value={p}><PriorityLabel priority={p} /></SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Reporter">
+            <span className="flex h-8 items-center gap-2 px-1 text-[13px] font-medium">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">{initials(members.find((m) => m.id === currentUserId)?.full_name)}</span>Me
+            </span>
+          </Field>
         </div>
       </div>
     </div>

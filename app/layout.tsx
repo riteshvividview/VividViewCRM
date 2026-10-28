@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "@fortawesome/fontawesome-svg-core/styles.css";
+import { config as faConfig } from "@fortawesome/fontawesome-svg-core";
+
+// Font Awesome CSS is imported above, so stop it injecting styles at runtime (avoids icon flash).
+faConfig.autoAddCss = false;
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { ThemeAccentProvider } from "@/components/shared/theme-accent-provider";
 import { Toaster } from "sonner";

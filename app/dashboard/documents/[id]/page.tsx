@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { BlockEditor } from "@/modules/documents/components/block-editor";
 import { useDocuments } from "@/modules/documents/hooks/use-documents";
 import type { Block } from "@/modules/documents/types";
+import { DocIcon, DOC_ICON_KEYS } from "@/modules/documents/components/doc-icon";
 
 type SaveState = "saved" | "saving" | "unsaved";
 
-const EMOJI_OPTIONS = ["📄", "📝", "📊", "🤝", "✅", "💡", "🗒️", "📋", "🔗", "🎯", "📌", "⚡"];
+
 
 export default function DocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +19,7 @@ export default function DocumentEditorPage() {
   const { documents, saveDocument, deleteDocument } = useDocuments();
 
   const [title, setTitle] = useState("");
-  const [icon, setIcon] = useState("📄");
+  const [icon, setIcon] = useState("File");
   const [blocks, setBlocks] = useState<Block[]>([{ id: crypto.randomUUID(), type: "paragraph", content: "" }]);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -31,7 +32,7 @@ export default function DocumentEditorPage() {
     const doc = documents.find((d) => d.id === id);
     if (doc && !loaded) {
       setTitle(doc.title);
-      setIcon(doc.icon ?? "📄");
+      setIcon(doc.icon ?? "File");
       if (doc.blocks.length > 0) setBlocks(doc.blocks);
       setLoaded(true);
     }
@@ -112,17 +113,18 @@ export default function DocumentEditorPage() {
             className="text-4xl hover:scale-110 transition-transform"
             onClick={() => setShowEmojiPicker((v) => !v)}
           >
-            {icon}
+            <DocIcon name={icon} className="h-9 w-9 text-muted-foreground" />
           </button>
           {showEmojiPicker && (
             <div className="absolute top-12 left-0 z-20 bg-popover border border-border rounded-xl shadow-xl p-2 grid grid-cols-6 gap-1">
-              {EMOJI_OPTIONS.map((e) => (
+              {DOC_ICON_KEYS.map((e) => (
                 <button
                   key={e}
                   className="text-xl p-1.5 rounded-lg hover:bg-muted transition-colors"
                   onClick={() => handleIconChange(e)}
+                  title={e}
                 >
-                  {e}
+                  <DocIcon name={e} className="h-4 w-4" />
                 </button>
               ))}
             </div>

@@ -250,11 +250,11 @@ export const MODULES: Module[] = [
     routePrefixes: ["/dashboard/actions"],
     defaultRoles: ["super_admin", "hr", "team_lead", "employee"],
     nav: { groupId: "tasks", groupLabel: "Tasks", items: [
-      { id: "actions",        href: "/dashboard/actions",          icon: "CalendarDays",  label: "Planner" },
+      { id: "actions",        href: "/dashboard/actions",          icon: "CalendarDays",  label: "My work" },
       { id: "task-schedule",  href: "/dashboard/actions/calendar", icon: "Clock",         label: "Schedule" },
-      { id: "task-all",       href: "/dashboard/actions/tasks",    icon: "CircleCheck",   label: "All tasks" },
+      { id: "task-all",       href: "/dashboard/actions/tasks",    icon: "CircleCheck",   label: "Tasks" },
       { id: "task-team",      href: "/dashboard/actions/teams",    icon: "Users",         label: "Team" },
-      { id: "task-projects",  href: "/dashboard/actions/projects", icon: "FolderKanban",  label: "Projects" },
+      { id: "task-projects",  href: "/dashboard/actions/projects", icon: "FolderKanban",  label: "All projects" },
     ]},
   },
 

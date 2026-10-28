@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { X, ChevronRight, ChevronLeft, Check, Upload, Users, FileText, Calendar, Rocket, Sparkles } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEnvelope, faPenToSquare, faBolt, faCalendarDays, faArrowsRotate, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,7 +137,7 @@ function StepTemplate({ state, setState }: { state: WizardState; setState: (s: P
             )}
           >
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shrink-0 text-white text-lg">
-              📧
+              <FontAwesomeIcon icon={faEnvelope} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground">{t.name}</p>
@@ -149,7 +151,7 @@ function StepTemplate({ state, setState }: { state: WizardState; setState: (s: P
           className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-border hover:border-purple-200 text-left transition-all"
           onDoubleClick={() => setMode("builder")}
         >
-          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xl">✏️</div>
+          <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-xl"><FontAwesomeIcon icon={faPenToSquare} className="h-4 w-4" /></div>
           <div>
             <p className="text-sm font-semibold text-foreground">Blank canvas</p>
             <p className="text-xs text-muted-foreground">Start from scratch</p>
@@ -228,7 +230,7 @@ function StepSchedule({ state, setState }: { state: WizardState; setState: (s: P
           )}
         >
           <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-lg", state.scheduleType === type ? "bg-purple-600" : "bg-muted")}>
-            {type === "now" ? "⚡" : type === "scheduled" ? "📅" : "🔄"}
+            <FontAwesomeIcon icon={type === "now" ? faBolt : type === "scheduled" ? faCalendarDays : faArrowsRotate} className={cn("h-4 w-4", state.scheduleType === type && "text-white")} />
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">
@@ -285,7 +287,7 @@ function StepReview({ state }: { state: WizardState }) {
         ))}
       </div>
       <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-xs text-amber-700 dark:text-amber-400">
-        ⚠️ Review everything carefully before launching. Sent emails cannot be recalled.
+        <FontAwesomeIcon icon={faTriangleExclamation} className="mr-1.5 h-3 w-3" />Review everything carefully before launching. Sent emails cannot be recalled.
       </div>
     </div>
   );

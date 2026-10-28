@@ -7,6 +7,8 @@ import {
   ArrowRight, Loader2, Receipt, LifeBuoy, CalendarPlus, Inbox,
 } from "lucide-react";
 import { toast } from "sonner";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faThumbtack } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -253,7 +255,7 @@ export default function HrmsHomePage() {
             action={<Link href="/dashboard/hrms/announcements" className="text-xs text-muted-foreground hover:text-foreground">View all</Link>}>
             {data.announcements.length === 0 ? <Empty>No announcements.</Empty> : data.announcements.map((a) => (
               <article key={a.id} className="px-2 py-2.5 border-b last:border-0">
-                <p className="text-sm font-medium">{a.pinned && "📌 "}{a.title}</p>
+                <p className="text-sm font-medium">{a.pinned && <FontAwesomeIcon icon={faThumbtack} className="mr-1.5 h-3 w-3 text-muted-foreground" />}{a.title}</p>
                 <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5 whitespace-pre-wrap">{a.body}</p>
                 <p className="text-xs text-muted-foreground mt-1 capitalize">{a.category} · {fmtDay(a.created_at.slice(0, 10))}</p>
               </article>

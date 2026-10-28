@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useTasks, type AddTaskInput } from "../hooks/use-tasks";
-import { TaskDetailPanel } from "../components/task-detail-panel";
+import { TaskDetailModal } from "../components/task-detail-modal";
 import { QuickAddTask } from "../components/quick-add-task";
-import type { Task, TaskMember, TaskTeam, TaskLabel, TaskProjectListItem } from "../types";
+import type { Task, TaskMember, TaskTeam, TaskLabel, TaskProjectListItem, TaskType } from "../types";
 
 interface TasksContextValue {
   tasks: Task[];
@@ -14,6 +14,8 @@ interface TasksContextValue {
   teams: TaskTeam[];
   labels: TaskLabel[];
   projects: TaskProjectListItem[];
+  types: TaskType[];
+  refreshTypes: () => Promise<void>;
   currentUserId: string | null;
   addTask: (input: AddTaskInput) => Promise<Task | null>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -47,6 +49,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const [labels, setLabels] = useState<TaskLabel[]>([]);
   const [projects, setProjects] = useState<TaskProjectListItem[]>([]);
+  const [types, setTypes] = useState<TaskType[]>([]);
+  const refreshTypes = useCallback(async () => {
+    try { const r = await fetch("/api/tasks/types"); if (r.ok) setTypes((await r.json()).types ?? []); } catch {}
+  }, []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -70,7 +76,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
     fetch("/api/tasks/labels").then((r) => r.json()).then((json) => setLabels(json.labels ?? [])).catch(() => {});
     refreshProjects();
-  }, [refreshProjects]);
+    refreshTypes();
+  }, [refreshProjects, refreshTypes]);
+
+  // Deep link: /dashboard/actions/...?task=<id> opens that task once tasks are loaded.
+  useEffect(() => {
+    if (loading) return;
+    const id = new URLSearchParams(window.location.search).get("task");
+    if (id && tasks.some((t) => t.id === id)) { setSelectedId(id); setPanelOpen(true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // Global "T" hotkey for quick add, available across every Tasks-module page
   useEffect(() => {
@@ -85,7 +100,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: TasksContextValue = {
-    tasks, loading, members, teams, labels, projects, currentUserId, refreshProjects,
+    tasks, loading, members, teams, labels, projects, types, refreshTypes, currentUserId, refreshProjects,
     refreshTasks: fetchTasks,
     addTask: async (input) => {
       try { return await addTask(input); } catch (e) { toast.error(errMsg(e)); return null; }
@@ -111,31 +126,47 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     <TasksContext.Provider value={value}>
       {children}
 
-      <TaskDetailPanel
+      <TaskDetailModal
         task={selectedTask}
         open={panelOpen && !!selectedTask}
         onClose={() => setPanelOpen(false)}
         onUpdate={value.updateTask}
         onDelete={value.deleteTask}
+        onDuplicate={async (t) => {
+          const copy = await value.addTask({
+            title: `${t.title} (copy)`, description: t.description, project_id: t.project_id, board_column_id: t.board_column_id,
+            type_id: t.type_id, priority: t.priority, due_date: t.due_date, planned_date: t.planned_date,
+            estimated_hours: t.estimated_hours, sub_tasks: t.sub_tasks.map((x) => ({ ...x, id: crypto.randomUUID(), checked: false })),
+            assignee_ids: t.assignees.map((a) => a.id), label_ids: t.labels.map((l) => l.id),
+          });
+          if (copy) { toast.success("Task duplicated"); setSelectedId(copy.id); }
+        }}
         members={members}
         teams={teams}
         labels={labels}
+        types={types}
         projects={projects}
         currentUserId={currentUserId}
+        onTypesChange={() => { refreshTypes(); fetchTasks(); }}
         onAddAssignees={(id, p) => { value.addAssignees(id, p); }}
         onRemoveAssignee={(id, u) => { value.removeAssignee(id, u); }}
         onAddLabel={(id, l) => { addLabel(id, l).catch((e) => toast.error(errMsg(e))); }}
         onRemoveLabel={(id, l) => { removeLabel(id, l).catch((e) => toast.error(errMsg(e))); }}
+        onLabelCreated={(l) => setLabels((prev) => (prev.some((x) => x.id === l.id) ? prev : [...prev, l]))}
       />
 
       <QuickAddTask
         open={quickAddOpen}
         onClose={() => setQuickAddOpen(false)}
-        onAdd={async (input) => { await value.addTask({ ...quickAddDefaults, ...input }); }}
+        onAdd={(input) => value.addTask({ ...quickAddDefaults, ...input })}
         members={members}
         teams={teams}
         projects={projects}
+        types={types}
+        labels={labels}
+        currentUserId={currentUserId}
         defaults={quickAddDefaults}
+        onLabelCreated={(l) => setLabels((prev) => (prev.some((x) => x.id === l.id) ? prev : [...prev, l]))}
       />
     </TasksContext.Provider>
   );

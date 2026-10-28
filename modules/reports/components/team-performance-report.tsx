@@ -1,4 +1,6 @@
 "use client";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMedal } from "@fortawesome/free-solid-svg-icons";
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,7 +12,8 @@ import { REP_REVENUE, ACTIVITY_BY_REP } from "../data/mock-data";
 import { CHART_COLORS } from "../types";
 import { cn } from "@/lib/utils";
 
-const MEDALS = ["🥇", "🥈", "🥉"];
+// Gold / silver / bronze medal colours for the top three.
+const MEDALS = ["text-amber-400", "text-slate-400", "text-orange-700"];
 
 export function TeamPerformanceReport() {
   const sorted = [...REP_REVENUE].sort((a, b) => b.actual - a.actual);
@@ -62,7 +65,7 @@ export function TeamPerformanceReport() {
               const att = Math.round((rep.actual / rep.target) * 100);
               return (
                 <div key={rep.name} className={cn("flex items-center gap-3 p-2 rounded-xl", i === 0 && "bg-amber-50 dark:bg-amber-950/20")}>
-                  <span className="w-6 text-center text-sm">{MEDALS[i] ?? <span className="text-muted-foreground font-medium">{i + 1}</span>}</span>
+                  <span className="w-6 text-center text-sm">{MEDALS[i] ? <FontAwesomeIcon icon={faMedal} className={`h-4 w-4 ${MEDALS[i]}`} /> : <span className="text-muted-foreground font-medium">{i + 1}</span>}</span>
                   <div className="w-24 shrink-0">
                     <p className="text-sm font-medium text-foreground">{rep.name.split(" ")[0]}</p>
                     <p className="text-[10px] text-muted-foreground">₹{rep.actual}L / ₹{rep.target}L</p>

@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
   const { ctx, admin, canManage } = r;
 
   const [{ data: project }, board, { data: members }] = await Promise.all([
-    admin.from("task_projects").select("id, name, description, status, color, icon, team_id, archived_at, owner_id, start_date, end_date, created_at").eq("id", id).single(),
+    admin.from("task_projects").select("id, name, description, status, color, icon, team_id, archived_at, owner_id, start_date, end_date, created_at, key").eq("id", id).single(),
     ensureProjectBoard(admin, ctx.workspaceId, id, ctx.userId),
     admin.from("task_project_members").select("user_id, role, added_at").eq("project_id", id),
   ]);
@@ -23,13 +23,19 @@ export async function GET(_request: NextRequest, { params }: Params) {
     ? await admin.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds)
     : { data: [] as { user_id: string; full_name: string; avatar_url: string | null }[] };
   const byId = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+  // Emails live in auth.users (service role only).
+  const emails = new Map<string, string>();
+  if (userIds.length) {
+    const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of list?.users ?? []) if (userIds.includes(u.id) && u.email) emails.set(u.id, u.email);
+  }
 
   return NextResponse.json({
     project,
     board_id: board.boardId,
     columns: board.columns,
     members: (members ?? []).map((m) => ({
-      id: m.user_id, role: m.role, full_name: byId.get(m.user_id)?.full_name ?? "Unknown", avatar_url: byId.get(m.user_id)?.avatar_url ?? null,
+      id: m.user_id, role: m.role, email: emails.get(m.user_id) ?? null, added_at: m.added_at, full_name: byId.get(m.user_id)?.full_name ?? "Unknown", avatar_url: byId.get(m.user_id)?.avatar_url ?? null,
     })),
     can_manage: canManage,
   });
@@ -43,7 +49,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const body = await request.json().catch(() => ({}));
   const update: Record<string, unknown> = {};
-  for (const k of ["name", "description", "color", "icon", "status", "start_date", "end_date", "team_id"]) {
+  if ("key" in body) {
+    if (typeof body.key !== "string" || !/^[A-Za-z]{2,6}$/.test(body.key)) return NextResponse.json({ error: "Key must be 2–6 letters" }, { status: 400 });
+    body.key = body.key.toUpperCase();
+  }
+  for (const k of ["name", "description", "color", "icon", "status", "start_date", "end_date", "team_id", "key"]) {
     if (k in body) update[k] = body[k] === "" ? null : body[k];
   }
   if ("archived" in body) update.archived_at = body.archived ? new Date().toISOString() : null;
@@ -51,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   update.updated_at = new Date().toISOString();
 
   const { data, error } = await r.admin.from("task_projects").update(update).eq("id", id)
-    .select("id, name, description, status, color, icon, team_id, archived_at, owner_id, start_date, end_date, created_at").single();
+    .select("id, name, description, status, color, icon, team_id, archived_at, owner_id, start_date, end_date, created_at, key").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ project: data });
 }

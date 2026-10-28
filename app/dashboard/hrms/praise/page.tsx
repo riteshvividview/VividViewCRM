@@ -1,6 +1,8 @@
 "use client";
 
 import { Award, MessageSquare, Users } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faAward } from "@fortawesome/free-solid-svg-icons";
 import { ResourceManager, fmtDate, empName } from "@/components/hrms/resource-manager";
 
 const KINDS = [
@@ -40,7 +42,7 @@ export default function PraisePage() {
                   <span className="text-muted-foreground">→</span>
                   <span className="font-medium">{empName(r, "recipient")}</span>
                 </div>
-                {r.badge && <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">🏅 {r.badge}</span>}
+                {r.badge && <span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium"><FontAwesomeIcon icon={faAward} className="mr-1 h-3 w-3" />{r.badge}</span>}
                 <p className="text-sm mt-2 whitespace-pre-wrap">{r.message}</p>
                 <p className="text-xs text-muted-foreground mt-2">{fmtDate(r.created_at)}</p>
               </article>

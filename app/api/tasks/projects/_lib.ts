@@ -22,7 +22,7 @@ export async function loadProject(projectId: string): Promise<Loaded | { error: 
   if (!canManage) {
     const { data: m } = await admin.from("task_project_members").select("role")
       .eq("project_id", projectId).eq("user_id", ctx.userId).maybeSingle();
-    canManage = m?.role === "owner";
+    canManage = m?.role === "owner" || m?.role === "admin";
   }
   return { ctx, admin, project, canManage };
 }

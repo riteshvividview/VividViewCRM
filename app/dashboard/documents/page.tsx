@@ -2,17 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Clock, LayoutTemplate, FileText, Handshake, File, ListChecks, BarChart2 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Plus, Search, Clock, LayoutTemplate } from "lucide-react";
 
-const DOC_ICON_MAP: Record<string, LucideIcon> = {
-  FileText, Handshake, File, ListChecks, BarChart2,
-};
-
-function DocIcon({ name, className }: { name?: string | null; className?: string }) {
-  const Icon = (name && DOC_ICON_MAP[name]) ? DOC_ICON_MAP[name] : File;
-  return <Icon className={className ?? "h-5 w-5 text-muted-foreground"} />;
-}
+import { DocIcon } from "@/modules/documents/components/doc-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";

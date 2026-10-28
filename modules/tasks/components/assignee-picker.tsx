@@ -64,11 +64,12 @@ export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTe
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {value.map((m) => (
-        <div key={m.id} className="group flex items-center gap-1 bg-muted rounded-full pl-1 pr-1.5 py-0.5">
+        <div key={m.id} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-1">
           <AssigneeAvatar member={m} size="xs" />
           <span className="text-xs text-foreground">{m.full_name.split(" ")[0]}</span>
-          <button type="button" onClick={() => onRemove(m.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <X className="h-3 w-3 text-muted-foreground" />
+          <button type="button" onClick={() => onRemove(m.id)} title={`Remove ${m.full_name}`}
+            className="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground">
+            <X className="h-3 w-3" />
           </button>
         </div>
       ))}
@@ -93,7 +94,12 @@ export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTe
               <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Members</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center justify-between">
+            Members
+            {value.length > 0 && (
+              <button type="button" className="normal-case tracking-normal text-[11px] font-normal hover:text-foreground" onClick={() => value.forEach((v) => onRemove(v.id))}>Clear all</button>
+            )}
+          </DropdownMenuLabel>
           {members.map((m) => (
             <DropdownMenuCheckboxItem
               key={m.id}

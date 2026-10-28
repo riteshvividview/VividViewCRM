@@ -89,7 +89,7 @@ export default function DealsPage() {
 
   function handleWon(id: string) {
     updateDealStage(id, "Sales");
-    toast.success("🎉 Deal marked as won!");
+    toast.success("Deal marked as won!");
   }
 
   function handleLost(id: string) {

@@ -16,6 +16,8 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
 export interface AddTaskInput extends Partial<Task> {
   assignee_ids?: string[];
+  /** false = keep the task unassigned when no assignee_ids are given (default: assign the creator). */
+  assign_to_me?: boolean;
   team_id?: string;
   label_ids?: string[];
 }
@@ -24,7 +26,7 @@ const EMPTY_TASK: Omit<Task, "id" | "created_at" | "updated_at"> = {
   title: "",
   description: "",
   status: "todo",
-  priority: "medium",
+  priority: "none",
   due_date: null,
   assignee_id: null,
   assignee_name: null,
@@ -44,6 +46,11 @@ const EMPTY_TASK: Omit<Task, "id" | "created_at" | "updated_at"> = {
   planned_date: null,
   color: null,
   recurrence_parent_id: null,
+  type_id: null,
+  type: null,
+  number: null,
+  comment_count: 0,
+  attachment_count: 0,
   project: null,
   board: null,
   position: 0,
@@ -113,9 +120,11 @@ export function useTasks() {
           board_column_id: optimistic.board_column_id,
           planned_date: optimistic.planned_date,
           color: optimistic.color,
+          type_id: optimistic.type_id,
           start_date: optimistic.start_date,
           estimated_hours: optimistic.estimated_hours,
           assignee_ids: t.assignee_ids,
+          assign_to_me: t.assign_to_me,
           team_id: t.team_id,
           label_ids: t.label_ids,
         }),

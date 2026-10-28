@@ -4,6 +4,8 @@
 
 import Link from "next/link";
 import { ArrowLeft, Phone, Mail, Calendar, Handshake, TrendingUp } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTrophy, faLocationDot } from "@fortawesome/free-solid-svg-icons";
 import { useTeams } from "@/modules/teams/hooks/use-teams";
 import { TargetProgress } from "@/modules/teams/components/target-progress";
 import { Leaderboard } from "@/modules/teams/components/leaderboard";
@@ -59,7 +61,7 @@ export default function MemberPage({ params }: PageProps) {
                 Score: {member.performance_score}/100
               </span>
               <span className="text-xs bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium">
-                🏆 Rank #{rank}
+                <FontAwesomeIcon icon={faTrophy} className="mr-1 h-3 w-3" />Rank #{rank}
               </span>
             </div>
           </div>
@@ -108,7 +110,7 @@ export default function MemberPage({ params }: PageProps) {
           <div className="space-y-2">
             {member.territories.map((ter) => (
               <div key={ter} className="flex items-center gap-2.5 p-3 bg-muted/40 rounded-xl">
-                <span className="text-base">📍</span>
+                <FontAwesomeIcon icon={faLocationDot} className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-foreground">{ter}</span>
               </div>
             ))}

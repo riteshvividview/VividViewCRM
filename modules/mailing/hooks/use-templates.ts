@@ -18,7 +18,7 @@ export const DEFAULT_TEMPLATES: EmailTemplate[] = [
       mkBlock("text", "# Introducing something new\n\nHi {{first_name}},\n\nWe're excited to share our latest update with you. Here's what's new in Vivid View CRM.", { align: "left" }),
       mkBlock("button", "See What's New", { url: "https://vividview.com", bgColor: "#7C3AED", textColor: "#ffffff" }),
       mkBlock("divider", ""),
-      mkBlock("footer", "© 2026 Vivid View CRM · [Unsubscribe]({{unsubscribe}})", { textColor: "#94a3b8" }),
+      mkBlock("footer", " 2026 Vivid View CRM · [Unsubscribe]({{unsubscribe}})", { textColor: "#94a3b8" }),
     ],
   },
   {
@@ -40,12 +40,12 @@ export const DEFAULT_TEMPLATES: EmailTemplate[] = [
     created_at: "2026-04-10T10:00:00Z",
     html_override: null,
     blocks: [
-      mkBlock("header", "We miss you 👋", { bgColor: "#f59e0b", textColor: "#ffffff" }),
+      mkBlock("header", "We miss you", { bgColor: "#f59e0b", textColor: "#ffffff" }),
       mkBlock("spacer", ""),
       mkBlock("text", "Hi {{first_name}},\n\nIt's been a while since we last connected. A lot has changed at Vivid View — here's a quick update.", { align: "left" }),
       mkBlock("image", "", { alt: "New features" }),
       mkBlock("button", "See What's New", { url: "https://vividview.com", bgColor: "#f59e0b", textColor: "#ffffff" }),
-      mkBlock("footer", "© 2026 Vivid View · [Unsubscribe]({{unsubscribe}})", { textColor: "#94a3b8" }),
+      mkBlock("footer", " 2026 Vivid View · [Unsubscribe]({{unsubscribe}})", { textColor: "#94a3b8" }),
     ],
   },
 ];

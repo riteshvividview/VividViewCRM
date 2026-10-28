@@ -1,5 +1,13 @@
 export type TaskStatus = "todo" | "in_progress" | "waiting" | "done";
-export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskPriority = "none" | "low" | "medium" | "high" | "urgent";
+
+/** Bordio task "Type" — its colour paints the whole card. */
+export interface TaskType {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+}
 export type LinkedEntityType = "lead" | "deal" | "contact" | "company" | null;
 export type RecurringPattern = "daily" | "workdays" | "weekly" | "biweekly" | "monthly" | "yearly" | null;
 
@@ -111,6 +119,7 @@ export interface TaskProjectRef {
   id: string;
   name: string;
   color: string | null;
+  key?: string | null;
 }
 
 export interface TaskBoardRef {
@@ -129,6 +138,7 @@ export interface TaskProjectListItem {
   team_id: string | null;
   archived_at: string | null;
   owner_id?: string | null;
+  key?: string | null;
   task_count?: number;
   open_count?: number;
 }
@@ -168,6 +178,12 @@ export interface Task {
   planned_date: string | null;
   color: string | null;
   recurrence_parent_id: string | null;
+  type_id: string | null;
+  type: { id: string; name: string; color: string } | null;
+  /** Sequential number in the workspace, shown as KEY-123. */
+  number: number | null;
+  comment_count: number;
+  attachment_count: number;
   project: TaskProjectRef | null;
   board: TaskBoardRef | null;
   position: number;
@@ -191,6 +207,7 @@ export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; b
 };
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; bg: string; border: string }> = {
+  none:   { label: "None",   color: "text-muted-foreground", bg: "bg-transparent",                 border: "border-l-transparent" },
   low:    { label: "Low",    color: "text-slate-500",   bg: "bg-slate-100 dark:bg-slate-800",        border: "border-l-slate-300" },
   medium: { label: "Medium", color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/30",        border: "border-l-blue-400" },
   high:   { label: "High",   color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-950/30",      border: "border-l-amber-500" },

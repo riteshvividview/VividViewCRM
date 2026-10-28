@@ -8,7 +8,7 @@ import { notifyUsers } from "./_lib/notify";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: StatusKey[] = ["todo", "in_progress", "waiting", "done"];
-const PRIORITIES = ["low", "medium", "high", "urgent"];
+const PRIORITIES = ["none", "low", "medium", "high", "urgent"];
 
 /**
  * GET filters: status, assignee_id, project_id, search, limit,
@@ -68,6 +68,10 @@ export async function POST(request: NextRequest) {
   for (const f of ["due_date", "planned_date", "start_date"]) {
     if (body[f] && !DATE_RE.test(body[f])) return NextResponse.json({ error: `Invalid ${f}` }, { status: 400 });
   }
+  if (body.type_id) {
+    const { data: type } = await adminClient().from("task_types").select("id").eq("id", body.type_id).eq("workspace_id", ctx.workspaceId).maybeSingle();
+    if (!type) return NextResponse.json({ error: "Task type not found" }, { status: 400 });
+  }
   if (body.recurring_pattern && !RECURRING_PATTERNS.includes(body.recurring_pattern)) {
     return NextResponse.json({ error: "Invalid repeat pattern" }, { status: 400 });
   }
@@ -94,7 +98,8 @@ export async function POST(request: NextRequest) {
     title,
     description: body.description ?? "",
     status,
-    priority: PRIORITIES.includes(body.priority) ? body.priority : "medium",
+    priority: PRIORITIES.includes(body.priority) ? body.priority : "none",
+    type_id: body.type_id || null,
     due_date: body.due_date || null,
     planned_date: body.planned_date || null,
     start_date: body.start_date || null,

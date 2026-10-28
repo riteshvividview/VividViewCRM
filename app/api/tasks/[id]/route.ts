@@ -6,7 +6,7 @@ import { columnForStatus, ensureProjectBoard, type StatusKey } from "../_lib/boa
 import { RECURRING_PATTERNS, nextOccurrence, shiftBy, type RecurringPattern } from "../_lib/recurrence";
 
 const PATCHABLE_FIELDS = [
-  "title", "description", "status", "priority", "due_date", "planned_date", "color",
+  "title", "description", "status", "priority", "due_date", "planned_date", "color", "type_id",
   "linked_entity_type", "linked_entity_id", "linked_entity_name",
   "parent_task_id", "sub_tasks", "recurring_pattern", "tags",
   "project_id", "board_column_id", "position", "story_points", "start_date",
@@ -58,8 +58,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (updates.recurring_pattern && !RECURRING_PATTERNS.includes(updates.recurring_pattern as RecurringPattern)) {
     return NextResponse.json({ error: "Invalid repeat pattern" }, { status: 400 });
   }
+  if ("priority" in updates && !["none", "low", "medium", "high", "urgent"].includes(String(updates.priority))) {
+    return NextResponse.json({ error: "Invalid priority" }, { status: 400 });
+  }
+  if (updates.type_id) {
+    const { data: type } = await admin.from("task_types").select("id").eq("id", updates.type_id).eq("workspace_id", ctx.workspaceId).maybeSingle();
+    if (!type) return NextResponse.json({ error: "Task type not found" }, { status: 400 });
+  }
   if (typeof updates.title === "string" && !updates.title.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
+  }
+
+  const logMeta: Record<string, unknown> = {};
+  if (updates.type_id) {
+    const { data: t } = await admin.from("task_types").select("name").eq("id", updates.type_id).maybeSingle();
+    if (t) logMeta.type_name = t.name;
   }
 
   // ── Keep project column and base status in sync ─────────────────────────────
@@ -82,6 +95,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updates.board_id = boardId;
     updates.board_column_id = col!.id;
     updates.status = col!.status_key;
+    if (col!.id !== existing.board_column_id) logMeta.column_name = col!.name;
   } else if ("project_id" in updates && !projectId) {
     updates.board_id = null;
     updates.board_column_id = null;
@@ -100,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   await admin.from("task_activity_log").insert({
     task_id: id, workspace_id: ctx.workspaceId, actor_id: ctx.userId, action: "updated", new_value: updates,
+    metadata: Object.keys(logMeta).length ? logMeta : null,
   });
 
   // ── Recurring: completing a repeating task schedules the next occurrence ────
@@ -120,7 +135,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         title: task.title, description: task.description, status: "todo", priority: task.priority,
         planned_date: task.planned_date ? next : null,
         due_date: task.planned_date ? shiftBy(task.due_date, anchor, next) : task.due_date ? next : null,
-        color: task.color, recurring_pattern: pattern, tags: task.tags ?? [],
+        color: task.color, type_id: task.type_id, recurring_pattern: pattern, tags: task.tags ?? [],
         sub_tasks: (Array.isArray(task.sub_tasks) ? task.sub_tasks : []).map((s: { checked?: boolean }) => ({ ...s, checked: false })),
         project_id: task.project_id, board_id: task.board_id, board_column_id: columnId,
         estimated_hours: task.estimated_hours, recurrence_parent_id: id,

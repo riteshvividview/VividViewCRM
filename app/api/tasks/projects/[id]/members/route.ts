@@ -40,3 +40,18 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   await r.admin.from("task_project_members").delete().eq("project_id", id).eq("user_id", userId);
   return NextResponse.json({ ok: true });
 }
+
+/** PATCH { user_id, role: "admin" | "member" } — change a member's project role. */
+export async function PATCH(request: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const r = await loadProject(id);
+  if ("error" in r) return r.error;
+  if (!r.canManage) return NextResponse.json({ error: "Only the project owner or admins can change roles" }, { status: 403 });
+  const body = await request.json().catch(() => ({}));
+  if (!["admin", "member"].includes(body.role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+  const { data: m } = await r.admin.from("task_project_members").select("role").eq("project_id", id).eq("user_id", body.user_id ?? "").maybeSingle();
+  if (!m) return NextResponse.json({ error: "Member not found" }, { status: 404 });
+  if (m.role === "owner") return NextResponse.json({ error: "The owner's role cannot be changed" }, { status: 400 });
+  await r.admin.from("task_project_members").update({ role: body.role }).eq("project_id", id).eq("user_id", body.user_id);
+  return NextResponse.json({ ok: true });
+}

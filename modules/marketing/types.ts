@@ -1,3 +1,6 @@
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { faGoogle, faFacebook, faInstagram, faLinkedin } from "@fortawesome/free-brands-svg-icons";
+import { faNewspaper, faPenNib, faSignHanging, faLink } from "@fortawesome/free-solid-svg-icons";
 export type MarketingCampaignType =
   | "google_ads" | "facebook" | "instagram" | "pr_articles"
   | "blogs" | "outdoor_ads" | "linkedin" | "affiliate";
@@ -40,15 +43,15 @@ export interface MarketingCampaign {
   created_at: string;
 }
 
-export const CAMPAIGN_TYPE_CONFIG: Record<MarketingCampaignType, { label: string; color: string; bg: string; icon: string }> = {
-  google_ads:   { label: "Google Ads",   color: "text-blue-700 dark:text-blue-400",     bg: "bg-blue-100 dark:bg-blue-900/30",     icon: "🔵" },
-  facebook:     { label: "Facebook",     color: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", icon: "📘" },
-  instagram:    { label: "Instagram",    color: "text-pink-700 dark:text-pink-400",     bg: "bg-pink-100 dark:bg-pink-900/30",     icon: "📸" },
-  pr_articles:  { label: "PR Articles",  color: "text-slate-700 dark:text-slate-400",   bg: "bg-slate-100 dark:bg-slate-800",      icon: "📰" },
-  blogs:        { label: "Blogs",        color: "text-amber-700 dark:text-amber-400",   bg: "bg-amber-100 dark:bg-amber-900/30",   icon: "✍️" },
-  outdoor_ads:  { label: "Outdoor Ads",  color: "text-emerald-700 dark:text-emerald-400",bg:"bg-emerald-100 dark:bg-emerald-900/30",icon: "🪧" },
-  linkedin:     { label: "LinkedIn",     color: "text-sky-700 dark:text-sky-400",       bg: "bg-sky-100 dark:bg-sky-900/30",       icon: "💼" },
-  affiliate:    { label: "Affiliate",    color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", icon: "🔗" },
+export const CAMPAIGN_TYPE_CONFIG: Record<MarketingCampaignType, { label: string; color: string; bg: string; icon: IconDefinition }> = {
+  google_ads:   { label: "Google Ads",   color: "text-blue-700 dark:text-blue-400",     bg: "bg-blue-100 dark:bg-blue-900/30",     icon: faGoogle },
+  facebook:     { label: "Facebook",     color: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-100 dark:bg-indigo-900/30", icon: faFacebook },
+  instagram:    { label: "Instagram",    color: "text-pink-700 dark:text-pink-400",     bg: "bg-pink-100 dark:bg-pink-900/30",     icon: faInstagram },
+  pr_articles:  { label: "PR Articles",  color: "text-slate-700 dark:text-slate-400",   bg: "bg-slate-100 dark:bg-slate-800",      icon: faNewspaper },
+  blogs:        { label: "Blogs",        color: "text-amber-700 dark:text-amber-400",   bg: "bg-amber-100 dark:bg-amber-900/30",   icon: faPenNib },
+  outdoor_ads:  { label: "Outdoor Ads",  color: "text-emerald-700 dark:text-emerald-400",bg:"bg-emerald-100 dark:bg-emerald-900/30",icon: faSignHanging },
+  linkedin:     { label: "LinkedIn",     color: "text-sky-700 dark:text-sky-400",       bg: "bg-sky-100 dark:bg-sky-900/30",       icon: faLinkedin },
+  affiliate:    { label: "Affiliate",    color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", icon: faLink },
 };
 
 export const STATUS_CONFIG: Record<MarketingCampaignStatus, { label: string; color: string; bg: string; dot: string }> = {

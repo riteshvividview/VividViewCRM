@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search, Plus, TrendingUp, DollarSign, Users, BarChart2 } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMarketing } from "@/modules/marketing/hooks/use-marketing";
@@ -132,7 +133,7 @@ export default function MarketingCampaignsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", tc.bg, tc.color)}>
-                        {tc.icon} {tc.label}
+                        <FontAwesomeIcon icon={tc.icon} className="mr-1 h-3 w-3" />{tc.label}
                       </span>
                     </td>
                     <td className="px-4 py-3">

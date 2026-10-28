@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { APPS, getAppForPath } from "@/lib/rbac/modules";
 import { AppSwitcher } from "./app-switcher";
+import { TaskProjectsNav } from "./task-projects-nav";
 import { cn } from "@/lib/utils";
 import { getNavGroups, type NavItem } from "./nav-config";
 import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
@@ -106,10 +107,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   );
   const currentApp = getAppForPath(pathname);
   const appDef = APPS.find((a) => a.id === currentApp);
-  const navGroups = useMemo(
+  const navGroupsMemo = useMemo(
     () => getNavGroups(allowedSet, role, currentApp),
     [allowedSet, role, currentApp]
   );
+  const navGroups = navGroupsMemo;
+  const activeHref = useMemo(() => {
+    let best = "";
+    for (const g of navGroups) for (const i of g.items) {
+      if ((pathname === i.href || pathname.startsWith(i.href + "/")) && i.href.length > best.length) best = i.href;
+    }
+    return best;
+  }, [navGroups, pathname]);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -142,6 +151,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
+          {/* most specific nav item wins the active highlight */}
           {navGroups.map((group, gi) => (
             <div key={group.id}>
               {gi > 0 && <Separator className="my-2 mx-1" />}
@@ -155,7 +165,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   key={item.id}
                   item={item}
                   collapsed={collapsed}
-                  active={pathname === item.href || pathname.startsWith(item.href + "/")}
+                  active={item.href === activeHref}
                   badge={
                     item.id === "actions" && hasTasks && pendingTaskCount > 0
                       ? pendingTaskCount
@@ -163,6 +173,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   }
                 />
               ))}
+              {group.id === "tasks" && currentApp === "tasks" && <TaskProjectsNav collapsed={collapsed} />}
             </div>
           ))}
         </nav>

@@ -1,3 +1,5 @@
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { faHeading, faParagraph, faImage, faHandPointer, faMinus, faArrowsUpDown, faGripLines } from "@fortawesome/free-solid-svg-icons";
 export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "paused";
 export type EmailBlockType = "header" | "text" | "button" | "image" | "divider" | "spacer" | "footer";
 
@@ -69,14 +71,14 @@ export const STATUS_CONFIG: Record<CampaignStatus, { label: string; color: strin
   paused:    { label: "Paused",    color: "text-amber-700 dark:text-amber-400",   bg: "bg-amber-50 dark:bg-amber-950/40",    dot: "bg-amber-400" },
 };
 
-export const BLOCK_PALETTE: { type: EmailBlockType; label: string; icon: string }[] = [
-  { type: "header",  label: "Header",  icon: "🖼️" },
-  { type: "text",    label: "Text",    icon: "📝" },
-  { type: "image",   label: "Image",   icon: "🌄" },
-  { type: "button",  label: "Button",  icon: "🔘" },
-  { type: "divider", label: "Divider", icon: "➖" },
-  { type: "spacer",  label: "Spacer",  icon: "⬜" },
-  { type: "footer",  label: "Footer",  icon: "📋" },
+export const BLOCK_PALETTE: { type: EmailBlockType; label: string; icon: IconDefinition }[] = [
+  { type: "header",  label: "Header",  icon: faHeading },
+  { type: "text",    label: "Text",    icon: faParagraph },
+  { type: "image",   label: "Image",   icon: faImage },
+  { type: "button",  label: "Button",  icon: faHandPointer },
+  { type: "divider", label: "Divider", icon: faMinus },
+  { type: "spacer",  label: "Spacer",  icon: faArrowsUpDown },
+  { type: "footer",  label: "Footer",  icon: faGripLines },
 ];
 
 export const PERSONALIZATION_TOKENS = [

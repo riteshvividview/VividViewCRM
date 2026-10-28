@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, TrendingUp, DollarSign, Users, BarChart2, Calculator } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMarketing } from "@/modules/marketing/hooks/use-marketing";
 import { CAMPAIGN_TYPE_CONFIG, STATUS_CONFIG } from "@/modules/marketing/types";
 import type { CampaignAsset } from "@/modules/marketing/types";
@@ -51,7 +52,7 @@ export default function CampaignDetailPage({ params }: PageProps) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", tc.bg, tc.color)}>
-                {tc.icon} {tc.label}
+                <FontAwesomeIcon icon={tc.icon} className="mr-1 h-3 w-3" />{tc.label}
               </span>
               <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium", sc.bg, sc.color)}>
                 <span className={cn("w-1.5 h-1.5 rounded-full", sc.dot)} />{sc.label}

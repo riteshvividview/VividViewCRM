@@ -81,7 +81,7 @@ export default function DealDetailPage() {
     setActivities((prev) => [{ id: Date.now().toString(), type: "status_change", content: `Deal marked as ${wonLostModal === "won" ? "Won" : "Lost"}${reason ? `: ${reason}` : ""}`, author: "You", time: "Just now" }, ...prev]);
     setWonLostModal(null);
     setReason("");
-    toast.success(wonLostModal === "won" ? "🎉 Deal won!" : "Deal marked as lost");
+    toast.success(wonLostModal === "won" ? "Deal won!" : "Deal marked as lost");
   }
 
   if (loading) return <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">Loading…</div>;
@@ -142,7 +142,7 @@ export default function DealDetailPage() {
       {wonLostModal && (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
           <div className="bg-background border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <h3 className="font-semibold mb-3">{wonLostModal === "won" ? "🎉 Mark as Won" : "Mark as Lost"}</h3>
+            <h3 className="font-semibold mb-3">{wonLostModal === "won" ? "Mark as Won" : "Mark as Lost"}</h3>
             <label className="text-sm text-muted-foreground">Reason (optional)</label>
             <textarea
               className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-ring"

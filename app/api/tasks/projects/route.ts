@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext } from "../_lib/helpers";
 import { ensureProjectBoard } from "../_lib/board";
 
-const PROJECT_SELECT = "id, name, description, status, color, icon, team_id, archived_at, owner_id, created_at";
+const PROJECT_SELECT = "id, name, description, status, color, icon, team_id, archived_at, owner_id, created_at, key";
+
+/** "Design Tasks" → "DES" */
+const deriveKey = (name: string) => (name.replace(/[^A-Za-z]/g, "").slice(0, 3) || "PRJ").toUpperCase();
 
 export async function GET(request: NextRequest) {
   const ctx = await getAuthContext();
@@ -54,6 +57,7 @@ export async function POST(request: NextRequest) {
       owner_id: ctx.userId,
       created_by: ctx.userId,
       position: Date.now() % 2147483647,
+      key: (typeof body.key === "string" && /^[A-Za-z]{2,6}$/.test(body.key) ? body.key : deriveKey(name)).toUpperCase(),
     })
     .select(PROJECT_SELECT)
     .single();

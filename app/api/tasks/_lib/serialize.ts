@@ -9,8 +9,9 @@ export const TASK_SELECT = `
   created_by, workspace_id, created_at, updated_at,
   project_id, board_id, position, story_points, start_date,
   estimated_hours, actual_hours, started_at, completed_at,
-  planned_date, color, board_column_id, recurrence_parent_id,
-  project:task_projects!project_id(id, name, color),
+  planned_date, color, board_column_id, recurrence_parent_id, type_id, number,
+  project:task_projects!project_id(id, name, color, key),
+  type:task_types!type_id(id, name, color),
   board:task_boards!board_id(id, name)
 `;
 
@@ -26,7 +27,8 @@ export interface TaskLabel {
   color: string;
 }
 
-interface TaskProjectRef { id: string; name: string; color: string | null }
+interface TaskProjectRef { id: string; name: string; color: string | null; key?: string | null }
+interface TaskTypeRef { id: string; name: string; color: string }
 interface TaskBoardRef { id: string; name: string }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,11 +37,15 @@ export type RawTask = Record<string, any> & {
   created_by: string | null;
   assignee_id: string | null;
   project?: TaskProjectRef | TaskProjectRef[] | null;
+  type?: TaskTypeRef | TaskTypeRef[] | null;
   board?: TaskBoardRef | TaskBoardRef[] | null;
 };
 
-export interface SerializedTask extends Omit<RawTask, "project" | "board"> {
+export interface SerializedTask extends Omit<RawTask, "project" | "board" | "type"> {
   project: TaskProjectRef | null;
+  type: TaskTypeRef | null;
+  comment_count: number;
+  attachment_count: number;
   board: TaskBoardRef | null;
   assignees: TaskMember[];
   labels: TaskLabel[];
@@ -61,10 +67,19 @@ export async function attachRelations(admin: SupabaseClient, tasks: RawTask[]): 
   if (tasks.length === 0) return [];
   const taskIds = tasks.map((t) => t.id);
 
-  const [assigneesRes, labelsRes] = await Promise.all([
+  const [assigneesRes, labelsRes, commentsRes, attachmentsRes] = await Promise.all([
     admin.from("task_assignees").select("task_id, user_id").in("task_id", taskIds),
     admin.from("task_label_assignments").select("task_id, task_labels(id, name, color)").in("task_id", taskIds),
+    admin.from("task_comments").select("task_id").in("task_id", taskIds).is("deleted_at", null),
+    admin.from("task_attachments").select("task_id").in("task_id", taskIds),
   ]);
+  const countBy = (rows: { task_id: string }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.task_id, (m.get(r.task_id) ?? 0) + 1);
+    return m;
+  };
+  const commentCounts = countBy(commentsRes.data);
+  const attachmentCounts = countBy(attachmentsRes.data);
 
   const userIds = new Set<string>();
   for (const a of assigneesRes.data ?? []) userIds.add(a.user_id);
@@ -102,6 +117,9 @@ export async function attachRelations(admin: SupabaseClient, tasks: RawTask[]): 
   return tasks.map((t) => ({
     ...t,
     project: toOne(t.project),
+    type: toOne(t.type),
+    comment_count: commentCounts.get(t.id) ?? 0,
+    attachment_count: attachmentCounts.get(t.id) ?? 0,
     board: toOne(t.board),
     assignees: assigneesByTask.get(t.id) ?? [],
     labels: labelsByTask.get(t.id) ?? [],

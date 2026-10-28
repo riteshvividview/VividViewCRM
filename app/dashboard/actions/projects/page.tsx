@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, FolderKanban, Loader2 } from "lucide-react";
@@ -24,6 +24,14 @@ export default function ProjectsPage() {
   const [color, setColor] = useState(TASK_COLORS[6]);
   const [team, setTeam] = useState<TaskMember[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Sidebar "+" links here with ?new=1
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") {
+      setOpen(true);
+      window.history.replaceState(null, "", "/dashboard/actions/projects");
+    }
+  }, []);
 
   async function handleCreate() {
     if (!name.trim()) return;

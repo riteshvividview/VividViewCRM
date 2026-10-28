@@ -1,6 +1,8 @@
 "use client";
 
 import { Video, Link2 } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEvent } from "../types";
 import { EVENT_CONFIG } from "../types";
 import { cn } from "@/lib/utils";
@@ -113,7 +115,7 @@ export function CalendarAgenda({ events, onEventClick }: CalendarAgendaProps) {
 function CalendarIcon() {
   return (
     <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
-      <span className="text-xl">📅</span>
+      <FontAwesomeIcon icon={faCalendarDays} className="h-5 w-5 text-muted-foreground" />
     </div>
   );
 }
