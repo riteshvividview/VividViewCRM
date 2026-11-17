@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { broadcast, userChannel } from "@/app/api/tasks/_lib/notify";
 import { normalizeNotificationPrefs, notificationAllowed } from "@/modules/notifications/preferences";
+import { profileOf, signedIn } from "@/lib/auth/fast";
+import { admin as adminClient } from "@/lib/auth/server";
 
 /**
  * The signed-in user's own notifications. Runs as the user, so the database's
@@ -9,12 +11,11 @@ import { normalizeNotificationPrefs, notificationAllowed } from "@/modules/notif
  */
 async function me() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") return null;
-  const { data: profile } = await supabase.from("profiles").select("disabled").eq("user_id", user.id).maybeSingle();
-  if (profile?.disabled) return null;
+  const claims = await signedIn(supabase);
+  if (!claims) return null;
+  const profile = await profileOf(adminClient(), claims.sub);
+  if (!profile || profile.disabled) return null;
+  const user = { id: claims.sub, user_metadata: claims.user_metadata ?? {} };
   return { supabase, user };
 }
 
@@ -39,7 +40,7 @@ export async function PATCH() {
 export async function DELETE() {
   const r = await me();
   if (!r) return unauthorized();
-  const prefs = normalizeNotificationPrefs(r.user.user_metadata?.notification_prefs);
+  const prefs = normalizeNotificationPrefs(r.user.user_metadata?.notification_prefs as Parameters<typeof normalizeNotificationPrefs>[0]);
   const { data: unread, error: readErr } = await r.supabase
     .from("notifications").select("type, entity_type").eq("user_id", r.user.id).eq("read", false);
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });

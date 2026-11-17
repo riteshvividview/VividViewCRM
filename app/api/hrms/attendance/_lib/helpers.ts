@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient, SupabaseClient } from "@supabase/supabase-js";
+import { profileOf, signedIn } from "@/lib/auth/fast";
 import { cookies } from "next/headers";
 
 export function adminClient(): SupabaseClient {
@@ -36,15 +37,12 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const claims = await signedIn(supabase);
+  if (!claims) return null;
+  const user = { id: claims.sub };
 
   const admin = adminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role, workspace_id, disabled")
-    .eq("user_id", user.id)
-    .single();
+  const profile = await profileOf(admin, user.id);
   if (!profile?.workspace_id || profile.disabled) return null;
 
   const { data: employee } = await admin

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { forgetProfile, profileOf, signedIn } from "@/lib/auth/fast";
 
 export function adminClient(): SupabaseClient {
   return createAdminClient(
@@ -31,13 +32,11 @@ export async function getCeo(): Promise<Ceo | null> {
       },
     },
   );
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await signedIn(supabase);
   if (!user) return null;
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") return null;
-  const { data: p } = await adminClient().from("profiles").select("role, workspace_id, disabled").eq("user_id", user.id).maybeSingle();
+  const p = await profileOf(adminClient(), user.sub);
   if (!p || p.role !== "super_admin" || p.disabled || !p.workspace_id) return null;
-  return { userId: user.id, workspaceId: p.workspace_id };
+  return { userId: user.sub, workspaceId: p.workspace_id };
 }
 
 export const forbidden = () => NextResponse.json({ error: "Only the CEO can manage users" }, { status: 403 });
@@ -59,6 +58,7 @@ const BANNED = "876000h";
  */
 export async function setAccountActive(admin: SupabaseClient, userId: string, active: boolean): Promise<string | null> {
   const { error } = await admin.from("profiles").update({ disabled: !active }).eq("user_id", userId);
+  forgetProfile(userId);
   if (error) return error.message;
   const { error: authError } = await admin.auth.admin.updateUserById(userId, { ban_duration: active ? "none" : BANNED });
   if (authError) {

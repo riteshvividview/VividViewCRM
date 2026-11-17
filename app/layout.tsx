@@ -9,6 +9,7 @@ faConfig.autoAddCss = false;
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { ThemeAccentProvider } from "@/components/shared/theme-accent-provider";
 import { Toaster } from "sonner";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins", display: "swap" });
 
@@ -27,6 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <Toaster position="bottom-right" richColors />
         </ThemeProvider>
+        {/* Real page-load timings from people using the app (Vercel → Speed Insights). */}
+        <SpeedInsights />
       </body>
     </html>
   );

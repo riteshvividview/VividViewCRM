@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { UserRole } from "@/types";
 import { adminClient, forbidden, getCeo, notFound, setAccountActive, targetProfile } from "../_lib/access";
+import { forgetProfile } from "@/lib/auth/fast";
 
 const VALID_ROLES: UserRole[] = ["super_admin", "hr", "team_lead", "employee"];
 
@@ -27,6 +28,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.role !== undefined) {
       if (!VALID_ROLES.includes(body.role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
       const { error } = await admin.from("profiles").update({ role: body.role }).eq("user_id", id);
+      forgetProfile(id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     }
     if (body.disabled !== undefined) {

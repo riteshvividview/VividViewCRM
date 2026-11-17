@@ -26,11 +26,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  // The sign-in token is checked locally (no request to Supabase Auth).
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims as { sub: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> } | undefined;
 
-  // A saved session that no longer works (expired, or the account was switched off)
-  // has to be cleared first, or sign-in would send the browser straight back here.
-  if (!user) redirect(userError && /banned/i.test(userError.message) ? "/auth/inactive" : "/auth/inactive?expired=1");
+  // A saved session that no longer works has to be cleared first, or sign-in would
+  // send the browser straight back here. (Switched-off accounts are caught below.)
+  if (!claims?.sub) redirect("/auth/inactive?expired=1");
+  const user = { id: claims.sub, email: claims.email, user_metadata: claims.user_metadata ?? {}, app_metadata: claims.app_metadata ?? {} };
 
   // Accounts with an authenticator app must pass the second step before anything opens.
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();

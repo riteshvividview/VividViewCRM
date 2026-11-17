@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse, after } from "next/server";
 import { broadcast } from "./notify";
 import { getTaskSettings } from "./settings";
+import { profileOf, signedIn } from "@/lib/auth/fast";
 
 export function adminClient(): SupabaseClient {
   return createAdminClient(
@@ -39,18 +40,12 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Checked locally (signed token) and from a short in-memory profile cache: no extra round trips.
+  const user = await signedIn(supabase);
   if (!user) return null;
-  // A password alone is not enough for an account that has two-factor sign-in turned on.
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") return null;
 
   const admin = adminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role, workspace_id, disabled")
-    .eq("user_id", user.id)
-    .single();
+  const profile = await profileOf(admin, user.sub);
   if (!profile?.workspace_id || profile.disabled) return null;
 
   const role = profile.role ?? "employee";
@@ -62,7 +57,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     readOnly = hr_access === "view";
   }
 
-  return { userId: user.id, workspaceId: profile.workspace_id, role, readOnly };
+  return { userId: user.sub, workspaceId: profile.workspace_id, role, readOnly };
 }
 
 export function isHR(role: string): boolean {
