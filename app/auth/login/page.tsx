@@ -70,7 +70,7 @@ export default function LoginPage() {
   return (
     <AuthCard title="Welcome back" subtitle="Sign in to your workspace">
       {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
-      <GoogleButton />
+      <GoogleButton remember={remember} />
       <OrDivider />
       <form onSubmit={handleLogin} className="space-y-3">
         <div className="space-y-1">

@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 import { faCircleCheck, faCircleInfo } from "@fortawesome/free-solid-svg-icons";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, setRemember } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -38,10 +38,12 @@ export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | "
 }
 
 /** "Continue with Google". Works only for emails the CEO added. */
-export function GoogleButton({ label = "Continue with Google", next }: { label?: string; next?: string }) {
+/** `remember` follows the "Remember me" box (Google sign-ins from other screens stay signed in). */
+export function GoogleButton({ label = "Continue with Google", next, remember = true }: { label?: string; next?: string; remember?: boolean }) {
   const [busy, setBusy] = useState(false);
   async function go() {
     setBusy(true);
+    setRemember(remember);
     const redirectTo = `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
     const { error } = await createClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo, queryParams: { prompt: "select_account" } } });
     if (error) { setBusy(false); toast.error("Google sign-in is not available right now"); }
