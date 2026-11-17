@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Phone, Mail, Calendar, FileText, Link2, MessageSquare, Plus } from "lucide-react";
+import { Phone, Mail, Calendar, FileText, Link2, MessageSquare, Plus } from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

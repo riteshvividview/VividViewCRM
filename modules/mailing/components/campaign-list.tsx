@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Play, Pause, Trash2, BarChart2, Copy, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Play, Pause, Trash2, BarChart2, Copy, ExternalLink } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";

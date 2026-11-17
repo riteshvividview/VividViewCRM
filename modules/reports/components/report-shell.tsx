@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, Clock } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowLeft, RefreshCw, Clock } from "@/components/shared/fa-icons";
+import type { LucideIcon } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { ExportButton } from "./export-button";
 import { cn } from "@/lib/utils";

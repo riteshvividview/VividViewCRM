@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Circle, ListPlus, Loader2 } from "lucide-react";
+import { CheckCircle2, Circle, ListPlus, Loader2 } from "@/components/shared/fa-icons";
 import { toast } from "sonner";
 import { ResourceManager, fmtDate, empName, type Row } from "@/components/hrms/resource-manager";
 import { useHrOptions } from "@/components/hrms/use-hr-options";

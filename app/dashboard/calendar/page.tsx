@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle2, SlidersHorizontal, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Download, Users, CheckCircle2, SlidersHorizontal, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarMonth } from "@/modules/calendar/components/calendar-month";

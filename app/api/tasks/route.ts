@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "./_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "./_lib/helpers";
 import { TASK_SELECT, attachRelations, type RawTask } from "./_lib/serialize";
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "./_lib/board";
 import { RECURRING_PATTERNS } from "./_lib/recurrence";
 import { notifyUsers } from "./_lib/notify";
+import { TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canUseTeam, myTeamIds, taskVisible, teamMemberIds } from "./_lib/teams";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: StatusKey[] = ["todo", "in_progress", "waiting", "done"];
@@ -52,13 +53,23 @@ export async function GET(request: NextRequest) {
     .limit(limit);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  const items = await attachRelations(admin, (data ?? []) as RawTask[]);
+  // Team tasks are only listed for that team (and for leads, the creator and the assignees).
+  // ?scope=brand with a project_id lists every task of the brand (the Brands tab), marking
+  // the ones the caller may only look at.
+  const mine = await myTeamIds(admin, ctx.userId);
+  const all = await attachRelations(admin, (data ?? []) as RawTask[]);
+  const brandView = projectId && params.get("scope") === "brand";
+  const items = brandView
+    ? all.map((t) => ({ ...t, can_edit: !ctx.readOnly && taskVisible(ctx, mine, t) }))
+    : all.filter((t) => taskVisible(ctx, mine, t));
   return NextResponse.json({ items });
 }
 
 export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const body = await request.json().catch(() => ({}));
   const title = (body.title ?? "").trim();
@@ -77,6 +88,11 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = adminClient();
+  if (body.team_id && !(await canUseTeam(admin, ctx, body.team_id))) {
+    return NextResponse.json({ error: "You can only create tasks in a team you belong to" }, { status: 403 });
+  }
+  // The deadline can never be earlier than the day the task is scheduled for.
+  if (body.planned_date && body.due_date && body.due_date < body.planned_date) body.due_date = body.planned_date;
   let status: StatusKey = STATUSES.includes(body.status) ? body.status : "todo";
   let boardId: string | null = null;
   let columnId: string | null = null;
@@ -93,6 +109,9 @@ export async function POST(request: NextRequest) {
     columnId = col.id;
     status = col.status_key;
   }
+
+  // New tasks have no main file yet, so they can never start as done.
+  if (status === "done") return NextResponse.json({ error: "Upload the main file to complete a task" }, { status: 400 });
 
   const insertData: Record<string, unknown> = {
     title,
@@ -115,19 +134,31 @@ export async function POST(request: NextRequest) {
     board_id: boardId,
     board_column_id: columnId,
     estimated_hours: body.estimated_hours ?? null,
+    brief_note: body.brief_note || null,
+    reference_note: body.reference_note || null,
+    main_note: body.main_note || null,
     position: Number.isFinite(body.position) ? body.position : Date.now() % 2147483647,
-    completed_at: status === "done" ? new Date().toISOString() : null,
+    completed_at: null,
     created_by: ctx.userId,
     workspace_id: ctx.workspaceId,
   };
+  if (body.team_id) insertData.team_id = body.team_id;
 
   // Assignees: explicit user ids plus optional whole-team expansion; default to the creator.
   const assigneeUserIds = new Set<string>(Array.isArray(body.assignee_ids) ? body.assignee_ids : []);
-  if (body.team_id) {
-    const { data: members } = await admin.from("team_members").select("user_id").eq("team_id", body.team_id);
+  if (body.assign_team_id) {
+    const { data: members } = await admin.from("team_members").select("user_id").eq("team_id", body.assign_team_id);
     for (const m of members ?? []) assigneeUserIds.add(m.user_id);
   }
-  if (assigneeUserIds.size === 0 && body.assign_to_me !== false) assigneeUserIds.add(ctx.userId);
+  if (body.team_id) {
+    // A team task can only be assigned to the team's members.
+    const outside = await assigneesOutsideTeam(admin, body.team_id, Array.from(assigneeUserIds));
+    if (outside) return NextResponse.json({ error: outside }, { status: 400 });
+  }
+  if (assigneeUserIds.size === 0 && body.assign_to_me !== false) {
+    // Quick adds default to the creator, unless they are not in the task's team.
+    if (!body.team_id || (await teamMemberIds(admin, body.team_id)).has(ctx.userId)) assigneeUserIds.add(ctx.userId);
+  }
 
   // Only workspace members can be assigned.
   const { data: validProfiles } = await admin.from("profiles").select("user_id, full_name")
@@ -139,7 +170,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: task, error } = await admin.from("tasks").insert(insertData).select(TASK_SELECT).single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return NextResponse.json({ error: /team_id/.test(error.message) ? TEAMS_MIGRATION_HINT : error.message }, { status: 400 });
 
   await Promise.all([
     assigneeIds.length > 0

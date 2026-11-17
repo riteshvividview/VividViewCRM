@@ -1,4 +1,4 @@
-import { Construction } from "lucide-react";
+import { Construction } from "@/components/shared/fa-icons";
 
 interface ComingSoonProps {
   title: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, MessageSquare, Users } from "lucide-react";
+import { Award, MessageSquare, Users } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faAward } from "@fortawesome/free-solid-svg-icons";
 import { ResourceManager, fmtDate, empName } from "@/components/hrms/resource-manager";

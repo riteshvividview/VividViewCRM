@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mail, Plus, UserPlus, BarChart2, Users, DollarSign, Phone, Star } from "lucide-react";
+import { ArrowLeft, Mail, Plus, UserPlus, BarChart2, Users, DollarSign, Phone, Star } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTeams } from "@/modules/teams/hooks/use-teams";

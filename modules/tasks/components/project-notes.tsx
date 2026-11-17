@@ -1,5 +1,6 @@
 "use client";
 
+import { dateLocale } from "@/lib/user-prefs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTrashCan, faSpinner, faCheck } from "@fortawesome/free-solid-svg-icons";
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils";
 interface Note { id: string; title: string; content: string; updated_at: string; created_by: string | null }
 
 const preview = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-const short = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+const short = (iso: string) => new Date(iso).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
 
 /** Bordio notes: list on the left, rich text document on the right, autosaved. */
 export function ProjectNotes({ projectId }: { projectId: string }) {

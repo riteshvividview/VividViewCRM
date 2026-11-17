@@ -1,60 +1,67 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 import type { Notification } from "../types";
+import { DEFAULT_NOTIFICATION_PREFS, NOTIFICATION_PREFS_EVENT, loadNotificationPrefs, notificationAllowed } from "../preferences";
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: "n1", type: "task_assigned", title: "Task assigned to you", body: 'Alex assigned "Send TechFlow proposal" to you.', read: false, entity_type: "task", entity_id: "t1", created_at: new Date(Date.now() - 5 * 60000).toISOString() },
-  { id: "n2", type: "deal_stage_changed", title: "Deal stage updated", body: "Enterprise License moved to Negotiations.", read: false, entity_type: "deal", entity_id: "d1", created_at: new Date(Date.now() - 30 * 60000).toISOString() },
-  { id: "n3", type: "mention", title: "You were mentioned", body: "Priya mentioned you in a comment on CloudBase deal.", read: false, entity_type: "deal", entity_id: "d5", created_at: new Date(Date.now() - 2 * 3600000).toISOString() },
-  { id: "n4", type: "task_due", title: "Task due today", body: '"Send TechFlow proposal" is due today.', read: true, entity_type: "task", entity_id: "t1", created_at: new Date(Date.now() - 4 * 3600000).toISOString() },
-  { id: "n5", type: "lead_assigned", title: "New lead assigned", body: "Aisha Patel from TechFlow has been assigned to you.", read: true, entity_type: "lead", entity_id: "l1", created_at: new Date(Date.now() - 24 * 3600000).toISOString() },
-  { id: "n6", type: "event_reminder", title: "Meeting in 15 minutes", body: "CloudBase Demo starts at 2:00 PM.", read: true, entity_type: "event", entity_id: "e2", created_at: new Date(Date.now() - 30 * 60000).toISOString() },
-];
-
-export function useNotifications() {
+/**
+ * The signed-in user's notifications, kept live: the server pings the user's
+ * Realtime channel whenever it saves one, and the list is re-read.
+ * `onNew` is called with notifications that arrived after the page loaded.
+ */
+export function useNotifications(onNew?: (fresh: Notification[]) => void) {
+  const userId = useShellProfile()?.user_id;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-
+  // What this device wants to be told about (Settings → Notifications).
+  const [prefs, setPrefs] = useState(DEFAULT_NOTIFICATION_PREFS);
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!url) {
-        await new Promise((r) => setTimeout(r, 200));
-        setNotifications(MOCK_NOTIFICATIONS);
-        setLoading(false);
-        return;
-      }
-      const { createClient } = await import("@/lib/supabase/client");
-      const { data } = await createClient().from("notifications").select("*").order("created_at", { ascending: false }).limit(50);
-      setNotifications(data ?? []);
-      setLoading(false);
-    };
-    load();
+    const read = () => setPrefs(loadNotificationPrefs());
+    read();
+    window.addEventListener(NOTIFICATION_PREFS_EVENT, read);
+    return () => window.removeEventListener(NOTIFICATION_PREFS_EVENT, read);
+  }, []);
+  const known = useRef<Set<string> | null>(null);
+  const onNewRef = useRef(onNew);
+  onNewRef.current = onNew;
+
+  const load = useCallback(async () => {
+    const { data } = await createClient().from("notifications").select("*").order("created_at", { ascending: false }).limit(50);
+    const list = (data ?? []) as Notification[];
+    setNotifications(list);
+    setLoading(false);
+    if (known.current) {
+      const now = loadNotificationPrefs();
+      const fresh = list.filter((n) => !n.read && !known.current!.has(n.id) && notificationAllowed(now, n));
+      if (fresh.length) onNewRef.current?.(fresh);
+    }
+    known.current = new Set(list.map((n) => n.id));
   }, []);
 
+  useEffect(() => {
+    if (!userId) return;
+    load();
+    const supabase = createClient();
+    const channel = supabase.channel(`user-notify:${userId}`).on("broadcast", { event: "new" }, () => { load(); }).subscribe();
+    // Safety net if the socket drops.
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+    return () => { clearInterval(t); supabase.removeChannel(channel); };
+  }, [userId, load]);
+
   const markRead = useCallback((id: string) => {
-    setNotifications((p) => p.map((n) => n.id === id ? { ...n, read: true } : n));
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url) return;
-    (async () => {
-      const { createClient } = await import("@/lib/supabase/client");
-      await createClient().from("notifications").update({ read: true }).eq("id", id);
-    })();
+    setNotifications((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    createClient().from("notifications").update({ read: true }).eq("id", id).then(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
-    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    const unreadIds = notifications.filter((n) => !n.read && notificationAllowed(prefs, n)).map((n) => n.id);
     setNotifications((p) => p.map((n) => ({ ...n, read: true })));
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!url || unreadIds.length === 0) return;
-    (async () => {
-      const { createClient } = await import("@/lib/supabase/client");
-      await createClient().from("notifications").update({ read: true }).in("id", unreadIds);
-    })();
-  }, [notifications]);
+    if (unreadIds.length) createClient().from("notifications").update({ read: true }).in("id", unreadIds).then(() => {});
+  }, [notifications, prefs]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const visible = notifications.filter((n) => notificationAllowed(prefs, n));
+  const unreadCount = visible.filter((n) => !n.read).length;
 
-  return { notifications, loading, markRead, markAllRead, unreadCount };
+  return { notifications: visible, loading, markRead, markAllRead, unreadCount };
 }

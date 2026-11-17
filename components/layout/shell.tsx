@@ -7,6 +7,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { ProfileProvider } from "@/lib/supabase/profile-context";
 import { OfflineScreen } from "@/components/shared/offline-screen";
+import { AccountSync } from "./account-sync";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types";
 import type { ModuleId } from "@/lib/rbac/modules";
@@ -42,6 +43,7 @@ export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
   return (
     <ProfileProvider profile={profile} allowedModuleIds={allowedModuleIds}>
       <OfflineScreen />
+      <AccountSync />
       <div className="flex h-screen overflow-hidden bg-background" data-app={currentApp || undefined}>
         {/* Desktop sidebar */}
         <div className="hidden md:flex">

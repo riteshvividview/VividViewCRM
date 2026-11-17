@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Building2, ChevronLeft, ChevronRight, Crosshair, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, Crosshair, Pencil, Plus, Trash2 } from "@/components/shared/fa-icons";
 import { HRGuard } from "@/components/hrms/hr-guard";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

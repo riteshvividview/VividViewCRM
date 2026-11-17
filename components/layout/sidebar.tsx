@@ -10,11 +10,12 @@ import {
   ChevronLeft, ChevronRight, Home, ShieldCheck, UserRound,
   Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
   LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
-  Star, Award, Briefcase, ClipboardCheck, FolderKanban,
-} from "lucide-react";
+  Star, Award, Briefcase, ClipboardCheck, FolderKanban, Tag,
+} from "@/components/shared/fa-icons";
 import { APPS, getAppForPath } from "@/lib/rbac/modules";
 import { AppSwitcher } from "./app-switcher";
 import { TaskProjectsNav } from "./task-projects-nav";
+import { TaskTeamsNav } from "./task-teams-nav";
 import { cn } from "@/lib/utils";
 import { getNavGroups, type NavItem } from "./nav-config";
 import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
@@ -32,7 +33,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Package, FileText, BarChart3, Puzzle, Settings2, Settings, Home,
   ShieldCheck, UserRound, Clock, CalendarOff, Banknote, LayoutDashboard,
   Receipt, FilePlus, LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
-  Star, Award, Briefcase, ClipboardCheck, FolderKanban,
+  Star, Award, Briefcase, ClipboardCheck, FolderKanban, Tag,
 };
 
 interface SidebarProps {
@@ -174,6 +175,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 />
               ))}
               {group.id === "tasks" && currentApp === "tasks" && <TaskProjectsNav collapsed={collapsed} />}
+              {group.id === "tasks" && currentApp === "tasks" && <TaskTeamsNav collapsed={collapsed} />}
             </div>
           ))}
         </nav>

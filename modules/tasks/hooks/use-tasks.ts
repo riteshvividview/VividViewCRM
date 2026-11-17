@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useShellProfile } from "@/lib/supabase/profile-context";
 import type { Task } from "../types";
+import { TASKS_CHANGED_EVENT } from "./use-pending-task-count";
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -18,7 +19,6 @@ export interface AddTaskInput extends Partial<Task> {
   assignee_ids?: string[];
   /** false = keep the task unassigned when no assignee_ids are given (default: assign the creator). */
   assign_to_me?: boolean;
-  team_id?: string;
   label_ids?: string[];
 }
 
@@ -51,6 +51,12 @@ const EMPTY_TASK: Omit<Task, "id" | "created_at" | "updated_at"> = {
   number: null,
   comment_count: 0,
   attachment_count: 0,
+  has_main_file: false,
+  team_id: null,
+  team: null,
+  brief_note: null,
+  reference_note: null,
+  main_note: null,
   project: null,
   board: null,
   position: 0,
@@ -70,20 +76,28 @@ export function useTasks() {
   const [loading, setLoading] = useState(true);
   const currentUserId = profile?.user_id ?? null;
 
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
+  /** `silent` re-reads without the loading state (used for live updates). */
+  const fetchTasks = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const result = await apiFetch<{ items: Task[] }>("/api/tasks?limit=1000");
       setTasks(result.items ?? []);
     } catch (e) {
       console.error("[useTasks] fetchTasks failed:", e);
-      setTasks([]);
+      if (!silent) setTasks([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // Tell the sidebar badge whenever the task list changes.
+  useEffect(() => {
+    if (loading) return;
+    const t = setTimeout(() => window.dispatchEvent(new Event(TASKS_CHANGED_EVENT)), 800);
+    return () => clearTimeout(t);
+  }, [tasks, loading]);
 
   const addTask = useCallback(async (t: AddTaskInput): Promise<Task> => {
     const tempId = `temp-${crypto.randomUUID()}`;
@@ -123,6 +137,9 @@ export function useTasks() {
           type_id: optimistic.type_id,
           start_date: optimistic.start_date,
           estimated_hours: optimistic.estimated_hours,
+          brief_note: optimistic.brief_note,
+          reference_note: optimistic.reference_note,
+          main_note: optimistic.main_note,
           assignee_ids: t.assignee_ids,
           assign_to_me: t.assign_to_me,
           team_id: t.team_id,
@@ -142,7 +159,13 @@ export function useTasks() {
     let snapshot: Task[] = [];
     setTasks((prev) => {
       snapshot = prev;
-      return prev.map((t) => t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t);
+      return prev.map((t) => {
+        if (t.id !== id) return t;
+        const next = { ...t, ...updates, updated_at: new Date().toISOString() };
+        // The deadline never falls before the scheduled day: moving the task later moves the deadline too.
+        if (updates.planned_date && next.due_date && next.due_date < updates.planned_date) next.due_date = updates.planned_date;
+        return next;
+      });
     });
     try {
       const { task, next_task } = await apiFetch<{ task: Task; next_task: Task | null }>(`/api/tasks/${id}`, {

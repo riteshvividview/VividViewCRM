@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 
 const COLUMNS: KanbanColumn[] = (Object.keys(STATUS_CONFIG) as TaskStatus[]).map((s) => ({ id: s, name: STATUS_CONFIG[s].label, status_key: s }));
 
-/** My work across all projects — Bordio table / kanban with filters. */
+/** My work across all brands — table / kanban with filters. */
 export default function AllTasksPage() {
-  const { tasks, members, types, currentUserId, openQuickAdd, openTask, updateTask } = useTasksContext();
+  const { tasks, members, types, projects, currentUserId, openQuickAdd, openTask, updateTask } = useTasksContext();
   const [view, setView] = useState<"table" | "kanban">("kanban");
   const [mineOnly, setMineOnly] = useState(true);
   const [filters, setFilters] = useState<TaskFilterState>(EMPTY_FILTERS);
@@ -28,8 +28,8 @@ export default function AllTasksPage() {
   return (
     <div className="-m-3 flex h-[calc(100vh-3.5rem)] flex-col sm:-m-6">
       <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3">
-        <Button className="h-9 rounded-full bg-sky-500 px-4 text-white hover:bg-sky-600" onClick={() => openQuickAdd()}>
-          <FontAwesomeIcon icon={faPlus} className="mr-1.5 h-3.5 w-3.5" />Add new
+        <Button className="h-9 rounded-full px-4" onClick={() => openQuickAdd()}>
+          <FontAwesomeIcon icon={faPlus} className="mr-1.5 h-3.5 w-3.5" />New task
         </Button>
         <div className="flex rounded-full bg-muted p-1">
           {([["table", "Table view", faTableList], ["kanban", "Kanban board", faTableColumns]] as const).map(([v, label, icon]) => (
@@ -43,7 +43,7 @@ export default function AllTasksPage() {
             <button key={label} onClick={() => setMineOnly(v)} className={cn("rounded-full px-3.5 py-1.5 text-[13px] font-medium", mineOnly === v ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>{label}</button>
           ))}
         </div>
-        <div className="ml-auto"><TaskFilters value={filters} onChange={setFilters} members={members} types={types} /></div>
+        <div className="ml-auto"><TaskFilters value={filters} onChange={setFilters} members={members} types={types} brands={projects} /></div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {view === "kanban" ? (

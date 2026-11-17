@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Upload, FileSpreadsheet, ArrowRight, CheckCircle2, X, AlertCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, ArrowRight, CheckCircle2, X, AlertCircle } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

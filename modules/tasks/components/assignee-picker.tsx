@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X, Users } from "lucide-react";
+import { Plus, X, Users } from "@/components/shared/fa-icons";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -54,15 +54,21 @@ interface AssigneePickerProps {
   onAddUsers: (userIds: string[]) => void;
   onAddTeam?: (teamId: string) => void;
   onRemove: (userId: string) => void;
+  /** Placeholder shown next to the + when nobody is picked; clicking it opens the list too. */
+  emptyLabel?: string;
 }
 
 /** Multi-assignee picker — pick individual members, a group of members, or expand an entire team. */
-export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTeam, onRemove }: AssigneePickerProps) {
+export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTeam, onRemove, emptyLabel }: AssigneePickerProps) {
   const [open, setOpen] = useState(false);
   const selectedIds = new Set(value.map((v) => v.id));
 
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
+    <div
+      className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-1.5", emptyLabel !== undefined && "cursor-pointer")}
+      // Clicking anywhere in the field (not on a person's x) opens the list, not only the + button.
+      onClick={(e) => { if (emptyLabel !== undefined && !(e.target as HTMLElement).closest("button")) setOpen(true); }}
+    >
       {value.map((m) => (
         <div key={m.id} className="flex items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-1">
           <AssigneeAvatar member={m} size="xs" />
@@ -117,6 +123,7 @@ export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTe
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      {value.length === 0 && emptyLabel && <span className="select-none text-[13px] text-muted-foreground">{emptyLabel}</span>}
     </div>
   );
 }

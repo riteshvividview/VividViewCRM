@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Printer } from "lucide-react";
+import { Loader2, Printer } from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { PayslipView, MONTHS } from "@/components/hrms/payslip-view";

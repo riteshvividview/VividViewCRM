@@ -7,7 +7,7 @@ import {
   AlertCircle, ChevronRight, UserCheck, ClipboardList,
   TrendingUp, Ban, RotateCcw, Users, CalendarCheck,
   ArrowRight, Umbrella, PartyPopper, Zap,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

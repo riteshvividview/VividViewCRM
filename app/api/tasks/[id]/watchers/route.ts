@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../../_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
+import { canAccessTask } from "../../_lib/teams";
 
 async function respondWithWatchers(admin: ReturnType<typeof adminClient>, taskId: string) {
   const { data: rows } = await admin.from("task_watchers").select("user_id").eq("task_id", taskId);
@@ -24,7 +25,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const admin = adminClient();
 
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!task || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   return respondWithWatchers(admin, id);
 }
@@ -33,12 +34,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const { id } = await params;
   const admin = adminClient();
 
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!task || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const body = await request.json().catch(() => ({}));
   const userId: string = typeof body.user_id === "string" ? body.user_id : ctx.userId;
@@ -52,12 +55,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const { id } = await params;
   const admin = adminClient();
 
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!task || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const body = await request.json().catch(() => ({}));
   const userId: string = typeof body.user_id === "string" ? body.user_id : ctx.userId;

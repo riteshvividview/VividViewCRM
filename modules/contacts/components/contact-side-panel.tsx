@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, Mail, Phone, Building2, Tag, X } from "lucide-react";
+import { User, Mail, Phone, Building2, Tag, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

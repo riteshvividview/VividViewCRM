@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, FileImage, FileVideo, FileText, File, Trash2, Eye } from "lucide-react";
+import { Upload, FileImage, FileVideo, FileText, File, Trash2, Eye } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import type { CampaignAsset } from "../types";
 import { cn } from "@/lib/utils";

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loadProject } from "../../_lib";
 import { notifyUsers } from "../../../_lib/notify";
+import { readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,6 +37,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const body = await request.json().catch(() => ({}));
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text) return NextResponse.json({ error: "Message is empty" }, { status: 400 });
@@ -66,6 +69,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const messageId = request.nextUrl.searchParams.get("message_id") ?? "";
   const { data: msg } = await r.admin.from("task_project_messages").select("author_id").eq("id", messageId).eq("project_id", id).maybeSingle();
   if (!msg) return NextResponse.json({ error: "Message not found" }, { status: 404 });

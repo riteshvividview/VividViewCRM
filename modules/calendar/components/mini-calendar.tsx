@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "@/components/shared/fa-icons";
 import { cn } from "@/lib/utils";
 
 interface MiniCalendarProps {

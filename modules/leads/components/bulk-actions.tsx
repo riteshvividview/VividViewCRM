@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, Tag, Download, Trash2, X } from "lucide-react";
+import { Users, Tag, Download, Trash2, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

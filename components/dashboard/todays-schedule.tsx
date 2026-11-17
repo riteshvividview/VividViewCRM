@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Video, ArrowRight, Clock } from "lucide-react";
+import { Video, ArrowRight, Clock } from "@/components/shared/fa-icons";
 import { useCalendar } from "@/modules/calendar/hooks/use-calendar";
 import { EVENT_CONFIG } from "@/modules/calendar/types";
 import { cn } from "@/lib/utils";

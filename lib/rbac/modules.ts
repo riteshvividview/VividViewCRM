@@ -16,6 +16,8 @@ export interface ModuleNavItem {
   icon: string;
   label: string;
   roleLabels?: Partial<Record<UserRole, string>>;
+  /** Show this item only to these roles (default: everyone with the module). */
+  roles?: UserRole[];
 }
 
 export type AppId = "hrms" | "tasks" | "crm" | "finance" | "admin";
@@ -26,16 +28,20 @@ export interface AppDef {
   description: string;
   icon: string;
   accent: string; // tailwind gradient classes
+  /** Not released yet: shown on the launcher as "Coming soon" and cannot be opened. */
+  comingSoon?: boolean;
+  /** Switched off for everyone: not listed anywhere and its pages cannot be opened. Remove the flag to bring the app back. */
+  hidden?: boolean;
 }
 
 // Top-level apps shown on the launcher. Each module belongs to exactly one app,
 // and the sidebar only shows the modules of the app the user is currently in.
 export const APPS: AppDef[] = [
-  { id: "hrms",    label: "HRMS",            description: "Employees, attendance, leave, payroll, performance & hiring", icon: "Users",       accent: "from-purple-600 to-violet-700" },
-  { id: "tasks",   label: "Task Management", description: "Projects, boards, calendar and team collaboration",           icon: "CircleCheck", accent: "from-blue-600 to-indigo-700" },
-  { id: "crm",     label: "CRM",             description: "Leads, deals, contacts, campaigns and sales teams",            icon: "Handshake",   accent: "from-emerald-600 to-teal-700" },
-  { id: "finance", label: "Invoices",        description: "Invoices, payments and billing settings",                      icon: "Receipt",     accent: "from-amber-500 to-orange-600" },
-  { id: "admin",   label: "Admin & Reports", description: "Users, roles, reports, integrations and settings",             icon: "ShieldCheck", accent: "from-slate-600 to-slate-800" },
+  { id: "hrms",    label: "HRMS",            description: "Employees, attendance, leave, payroll, performance & hiring", icon: "Users",       accent: "from-purple-600 to-violet-700", comingSoon: true },
+  { id: "tasks",   label: "Task Management", description: "Brands, boards, files, chat and team planning",               icon: "CircleCheck", accent: "from-blue-600 to-indigo-700" },
+  { id: "crm",     label: "CRM",             description: "Leads, deals, contacts, campaigns and sales teams",            icon: "Handshake",   accent: "from-emerald-600 to-teal-700", hidden: true },
+  { id: "finance", label: "Invoices",        description: "Invoices, payments and billing settings",                      icon: "Receipt",     accent: "from-amber-500 to-orange-600", hidden: true },
+  { id: "admin",   label: "User Management", description: "Add people, set their roles and control what they can open",   icon: "ShieldCheck", accent: "from-slate-600 to-slate-800" },
 ];
 
 export interface Module {
@@ -46,6 +52,8 @@ export interface Module {
   routePrefixes: string[]; // all URL prefixes this module protects
   exactRoutes?: string[];  // paths granted exactly (not their sub-paths), e.g. an app's home page
   defaultRoles: UserRole[];
+  /** Switched off for everyone while the rest of its app stays available. */
+  hidden?: boolean;
   nav: {
     groupId: string;
     groupLabel: string;
@@ -254,13 +262,14 @@ export const MODULES: Module[] = [
       { id: "task-schedule",  href: "/dashboard/actions/calendar", icon: "Clock",         label: "Schedule" },
       { id: "task-all",       href: "/dashboard/actions/tasks",    icon: "CircleCheck",   label: "Tasks" },
       { id: "task-team",      href: "/dashboard/actions/teams",    icon: "Users",         label: "Team" },
-      { id: "task-projects",  href: "/dashboard/actions/projects", icon: "FolderKanban",  label: "All projects" },
+      { id: "task-projects",  href: "/dashboard/actions/brands",   icon: "Tag",           label: "Brands" },
+      { id: "task-settings",  href: "/dashboard/actions/settings", icon: "Settings",      label: "Settings", roles: ["super_admin"] },
     ]},
   },
 
   // ── Analytics ─────────────────────────────────────────────────────────────
   {
-    id: "analytics", label: "Analytics & Reports", group: "Analytics", app: "admin",
+    id: "analytics", label: "Analytics & Reports", group: "Analytics", app: "admin", hidden: true,
     routePrefixes: ["/dashboard/reports", "/dashboard/integrations", "/dashboard/email-settings"],
     defaultRoles: ["super_admin"],
     nav: { groupId: "analytics", groupLabel: "Analytics & Setup", items: [
@@ -283,6 +292,11 @@ export const MODULES: Module[] = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** A module is off when it, or the whole app it belongs to, is switched off. */
+export function isModuleOff(m: Module): boolean {
+  return !!m.hidden || !!APPS.find((a) => a.id === m.app)?.hidden;
+}
 
 // Routes always accessible regardless of module grants
 // "/dashboard" itself (the app launcher) is matched exactly, not as a prefix.
@@ -321,8 +335,9 @@ export function canAccessRoute(
     (r) => pathname === r || pathname.startsWith(r + "/")
   )) return true;
 
+  // Pages of switched-off apps cannot be opened by anyone, whatever their role.
   return MODULES
-    .filter((m) => allowedModules.has(m.id))
+    .filter((m) => allowedModules.has(m.id) && !isModuleOff(m))
     .some((m) =>
       (m.exactRoutes ?? []).includes(pathname) ||
       m.routePrefixes.some(
@@ -344,12 +359,26 @@ export function getAppForPath(pathname: string): AppId | null {
   return best?.app ?? null;
 }
 
+/** Apps the user can open (released apps only). */
 export function getAllowedApps(allowedModules: Set<ModuleId>): AppDef[] {
-  return APPS.filter((a) => MODULES.some((m) => m.app === a.id && allowedModules.has(m.id)));
+  return APPS.filter((a) => !a.comingSoon && MODULES.some((m) => m.app === a.id && allowedModules.has(m.id) && !isModuleOff(m)));
+}
+
+/** Apps the user will get, but that are not released yet. */
+export function getComingSoonApps(allowedModules: Set<ModuleId>): AppDef[] {
+  return APPS.filter((a) => a.comingSoon && MODULES.some((m) => m.app === a.id && allowedModules.has(m.id) && !isModuleOff(m)));
+}
+
+export function isHiddenApp(appId: AppId | null): boolean {
+  return !!appId && !!APPS.find((a) => a.id === appId)?.hidden;
+}
+
+export function isComingSoonApp(appId: AppId | null): boolean {
+  return !!appId && !!APPS.find((a) => a.id === appId)?.comingSoon;
 }
 
 // First nav href of an app the user can access — the app's entry point.
 export function getAppHome(appId: AppId, allowedModules: Set<ModuleId>): string | null {
-  const mod = MODULES.find((m) => m.app === appId && allowedModules.has(m.id));
+  const mod = MODULES.find((m) => m.app === appId && allowedModules.has(m.id) && !isModuleOff(m));
   return mod?.nav.items[0]?.href ?? null;
 }

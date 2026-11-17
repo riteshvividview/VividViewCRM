@@ -30,6 +30,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!user) redirect("/auth/login");
 
+  // Accounts with an authenticator app must pass the second step before anything opens.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") redirect("/auth/mfa");
+
   const metaName = (user.user_metadata?.full_name as string | undefined)?.trim() ?? "";
 
   // Fetch profile and module overrides in parallel
@@ -62,7 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     profile = created;
   }
 
-  const resolvedName = metaName || profile?.full_name?.trim() || user.email?.split("@")[0] || "User";
+  const resolvedName = profile?.full_name?.trim() || metaName || user.email?.split("@")[0] || "User";
 
   if (profile && !profile.full_name?.trim() && resolvedName) {
     supabase.from("profiles").update({ full_name: resolvedName }).eq("user_id", user.id);
@@ -72,6 +76,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const role = (profile?.role ?? "employee") as UserRole;
   const overrides = (overridesResult.data ?? []) as ModuleOverride[];
   const effectiveModules = getEffectiveModules(role, overrides);
+  // The CEO decides in Task settings whether HR sees the Tasks app (default: hidden).
+  if (role === "hr" && profile?.workspace_id) {
+    const { data: ts } = await supabaseAdmin.from("task_settings").select("hr_access").eq("workspace_id", profile.workspace_id).maybeSingle();
+    if ((ts?.hr_access ?? "hidden") === "hidden") effectiveModules.delete("tasks");
+  }
   const allowedModuleIds = Array.from(effectiveModules) as ModuleId[];
 
   // Route-level access check using x-pathname injected by middleware

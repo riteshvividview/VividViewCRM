@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/shared/fa-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 

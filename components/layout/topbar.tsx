@@ -1,8 +1,10 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCloudMoon, faSunPlantWilt } from "@fortawesome/free-solid-svg-icons";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu, LayoutGrid } from "lucide-react";
+import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu, LayoutGrid } from "@/components/shared/fa-icons";
 import { APPS, getAppForPath, getAppHome } from "@/lib/rbac/modules";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
@@ -147,9 +149,20 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={theme === "dark" ? "Light theme" : "Dark theme"}
+            onClick={() => {
+              // Fade every colour for a moment while the theme flips.
+              const root = document.documentElement;
+              root.classList.add("theme-switching");
+              window.setTimeout(() => root.classList.remove("theme-switching"), 450);
+              setTheme(theme === "dark" ? "light" : "dark");
+            }}
           >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <span className="relative block h-4 w-4">
+              <FontAwesomeIcon icon={faSunPlantWilt} className={cn("absolute inset-0 h-4 w-4 transition-all duration-500", theme === "dark" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0")} />
+              <FontAwesomeIcon icon={faCloudMoon} className={cn("absolute inset-0 h-4 w-4 transition-all duration-500", theme === "dark" ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100")} />
+            </span>
           </Button>
         )}
 
@@ -157,14 +170,14 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-accent transition-colors">
+            <button className="flex shrink-0 items-center gap-2 rounded-lg px-2 py-1 hover:bg-accent transition-colors">
               <Avatar className="h-7 w-7">
                 <AvatarImage src={profile?.avatar_url ?? ""} />
                 <AvatarFallback className="bg-purple-100 text-purple-700 text-xs font-semibold">
                   {getInitials(displayName)}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden md:block text-sm font-medium text-foreground max-w-[120px] truncate">
+              <span className="hidden md:block whitespace-nowrap text-sm font-medium text-foreground">
                 {displayName}
               </span>
             </button>

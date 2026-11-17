@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Shield, Layers, CheckCircle2, AlertCircle, RefreshCw, History,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

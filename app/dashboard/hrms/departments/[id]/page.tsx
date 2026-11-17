@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Users, MoreHorizontal, ArrowRightLeft, UserMinus, UserPlus, Search,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {

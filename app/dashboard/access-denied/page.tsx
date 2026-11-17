@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldX, ArrowLeft } from "lucide-react";
+import { ShieldX, ArrowLeft } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { useShellProfile } from "@/lib/supabase/profile-context";
 
 const ROLE_HOME: Record<string, string> = {
   super_admin: "/dashboard",
-  hr:          "/dashboard/hrms",
+  hr:          "/dashboard",
   team_lead:   "/dashboard/actions",
   employee:    "/dashboard/actions",
 };

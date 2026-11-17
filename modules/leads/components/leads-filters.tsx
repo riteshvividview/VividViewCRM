@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Filter, X, ChevronDown } from "lucide-react";
+import { Filter, X, ChevronDown } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { LEAD_STATUSES, LEAD_SOURCES, STATUS_CONFIG, type LeadStatus, type LeadSource } from "../types";
 import { cn } from "@/lib/utils";

@@ -6,7 +6,7 @@ import {
   Clock, CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronRight,
   LogIn, LogOut, Coffee, Home, PartyPopper, Settings, Fingerprint, Wand2, Map as MapIcon, ClipboardEdit,
   TrendingUp, Download, ListChecks,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";

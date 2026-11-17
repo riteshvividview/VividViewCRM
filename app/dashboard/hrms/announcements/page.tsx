@@ -1,6 +1,6 @@
 "use client";
 
-import { Pin, Pencil } from "lucide-react";
+import { Pin, Pencil } from "@/components/shared/fa-icons";
 import { ResourceManager, fmtDate } from "@/components/hrms/resource-manager";
 import { Button } from "@/components/ui/button";
 

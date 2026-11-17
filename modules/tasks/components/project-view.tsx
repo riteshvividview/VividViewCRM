@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSquareCheck, faCalendar, faNoteSticky, faUser } from "@fortawesome/free-regular-svg-icons";
+import { faSquareCheck, faCalendar, faNoteSticky, faUser, faFolderOpen } from "@fortawesome/free-regular-svg-icons";
 import {
   faPlus, faCheck, faTableList, faTableColumns, faEllipsis, faChevronLeft, faChevronRight, faPen, faBoxArchive, faTrashCan, faSpinner, faXmark,
 } from "@fortawesome/free-solid-svg-icons";
@@ -11,33 +11,36 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useTasksContext } from "../context/tasks-context";
 import { BordioKanban, type KanbanColumn } from "./bordio-kanban";
 import { BordioTable } from "./bordio-table";
 import { ProjectNotes } from "./project-notes";
+import { BrandFiles } from "./brand-files";
 import { WeeklyPlanner } from "./weekly-planner";
 import { TaskFilters, applyTaskFilters, EMPTY_FILTERS, type TaskFilterState } from "./task-filters";
 import { AssigneePicker } from "./assignee-picker";
 import { StatusIcon } from "./task-icons";
-import type { BoardColumn, TaskMember, TaskStatus } from "../types";
+import type { BoardColumn, Task, TaskMember, TaskStatus } from "../types";
 import { STATUS_CONFIG, TASK_COLORS } from "../types";
 import { initials } from "../lib/bordio";
 import { cn } from "@/lib/utils";
 
-type Tool = "tasks" | "calendar" | "notes" | "members";
+type Tool = "tasks" | "files" | "calendar" | "notes" | "members";
 interface ProjectInfo { id: string; name: string; description: string | null; color: string | null; archived_at: string | null; owner_id: string | null; key: string | null }
 interface ProjectMember extends TaskMember { role: "owner" | "admin" | "member"; email: string | null }
 
 const TOOLS: { id: Tool; label: string; icon: typeof faSquareCheck }[] = [
   { id: "tasks", label: "Tasks", icon: faSquareCheck },
+  { id: "files", label: "Files", icon: faFolderOpen },
   { id: "calendar", label: "Calendar", icon: faCalendar },
   { id: "notes", label: "Notes", icon: faNoteSticky },
   { id: "members", label: "Members", icon: faUser },
 ];
 
-const ROLE_LABEL = { owner: "Project owner", admin: "Project admin", member: "Project member" } as const;
+const ROLE_LABEL = { owner: "Brand owner", admin: "Brand admin", member: "Member" } as const;
 
 export function ProjectView({ projectId }: { projectId: string }) {
   const router = useRouter();
@@ -58,7 +61,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const load = useCallback(async () => {
     const res = await fetch(`/api/tasks/projects/${projectId}`);
     const json = await res.json();
-    if (!res.ok) { setError(json.error ?? "Could not load project"); return; }
+    if (!res.ok) { setError(json.error ?? "Could not load brand"); return; }
     setProject(json.project);
     setColumns(json.columns ?? []);
     setProjectMembers(json.members ?? []);
@@ -73,8 +76,34 @@ export function ProjectView({ projectId }: { projectId: string }) {
     window.history.replaceState(null, "", `${window.location.pathname}?${qs}`);
   }, [tool, view]);
 
-  const projectTasks = useMemo(() => tasks.filter((t) => t.project_id === projectId), [tasks, projectId]);
-  const visible = useMemo(() => applyTaskFilters(projectTasks, filters), [projectTasks, filters]);
+  // The Brands tab shows every task of the brand, including other teams' tasks (view only).
+  const [brandTasks, setBrandTasks] = useState<Task[] | null>(null);
+  const [teamFilter, setTeamFilter] = useState("all");
+  const loadBrandTasks = useCallback(async () => {
+    const res = await fetch(`/api/tasks?project_id=${projectId}&scope=brand&limit=1000`);
+    if (res.ok) setBrandTasks((await res.json()).items ?? []);
+  }, [projectId]);
+  useEffect(() => {
+    loadBrandTasks();
+    window.addEventListener("tasks:changed", loadBrandTasks);
+    return () => window.removeEventListener("tasks:changed", loadBrandTasks);
+  }, [loadBrandTasks]);
+  // Prefer the user's own (live, optimistic) copy of a task when they have one.
+  const projectTasks = useMemo(() => {
+    const own = new Map(tasks.filter((t) => t.project_id === projectId).map((t) => [t.id, t]));
+    const list = (brandTasks ?? []).map((t) => (own.has(t.id) ? { ...own.get(t.id)!, can_edit: t.can_edit } : t));
+    for (const t of own.values()) if (!list.some((x) => x.id === t.id)) list.push(t);
+    return list;
+  }, [brandTasks, tasks, projectId]);
+  const teamOptions = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; color: string | null }>();
+    for (const t of projectTasks) if (t.team) m.set(t.team.id, t.team);
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [projectTasks]);
+  const visible = useMemo(() => applyTaskFilters(
+    projectTasks.filter((t) => teamFilter === "all" || (teamFilter === "none" ? !t.team_id : t.team_id === teamFilter)), filters,
+  ), [projectTasks, filters, teamFilter]);
+  const viewOnly = () => toast.info("You can view this task, but only the people working on it can change it.");
 
   async function api(path: string, method: string, body?: unknown) {
     const res = await fetch(`/api/tasks/projects/${projectId}${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -121,10 +150,10 @@ export function ProjectView({ projectId }: { projectId: string }) {
       {/* Tools */}
       {showTools ? (
         <nav className="hidden w-[190px] shrink-0 flex-col border-r bg-muted/20 px-3 py-4 md:flex">
-          <p className="mb-2 px-2 text-[13px] font-semibold">Tools</p>
+          <p className="mb-2 px-2 text-[13px] font-semibold">Brand</p>
           {TOOLS.map((t) => (
             <button key={t.id} onClick={() => setTool(t.id)}
-              className={cn("mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] transition-colors", tool === t.id ? "bg-muted font-medium text-sky-500" : "text-foreground/85 hover:bg-muted/60")}>
+              className={cn("mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] transition-colors", tool === t.id ? "bg-muted font-medium text-primary" : "text-foreground/85 hover:bg-muted/60")}>
               <FontAwesomeIcon icon={t.icon} className="h-4 w-4" />{t.label}
             </button>
           ))}
@@ -141,8 +170,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3">
-          <Button className="h-9 rounded-full bg-sky-500 px-4 text-white hover:bg-sky-600" onClick={() => openQuickAdd({ project_id: projectId, board_column_id: firstCol?.id })}>
-            <FontAwesomeIcon icon={faPlus} className="mr-1.5 h-3.5 w-3.5" />Add new
+          <Button className="h-9 rounded-full px-4" onClick={() => openQuickAdd({ project_id: projectId, board_column_id: firstCol?.id })}>
+            <FontAwesomeIcon icon={faPlus} className="mr-1.5 h-3.5 w-3.5" />New task
           </Button>
           {tool === "tasks" && (
             <div className="flex rounded-full bg-muted p-1">
@@ -152,6 +181,18 @@ export function ProjectView({ projectId }: { projectId: string }) {
                 </button>
               ))}
             </div>
+          )}
+          {tool === "tasks" && (
+            <Select value={teamFilter} onValueChange={setTeamFilter}>
+              <SelectTrigger className="h-9 w-[170px] rounded-full text-[13px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All teams</SelectItem>
+                {teamOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: t.color ?? "#6366f1" }} />{t.name}</span></SelectItem>
+                ))}
+                <SelectItem value="none">No team</SelectItem>
+              </SelectContent>
+            </Select>
           )}
           {tool === "tasks" && <TaskFilters value={filters} onChange={setFilters} members={projectMembers.length ? projectMembers : members} types={types} />}
 
@@ -169,15 +210,15 @@ export function ProjectView({ projectId }: { projectId: string }) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><button className="flex h-9 w-9 items-center justify-center rounded-full border text-muted-foreground hover:bg-muted"><FontAwesomeIcon icon={faEllipsis} /></button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setEditOpen(true)}><FontAwesomeIcon icon={faPen} className="mr-2 h-3 w-3" />Edit project</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={async () => { if (await api("", "PATCH", { archived: !project.archived_at })) { load(); refreshProjects(); toast.success(project.archived_at ? "Project restored" : "Project archived"); } }}>
-                    <FontAwesomeIcon icon={faBoxArchive} className="mr-2 h-3 w-3" />{project.archived_at ? "Restore project" : "Archive project"}
+                  <DropdownMenuItem onSelect={() => setEditOpen(true)}><FontAwesomeIcon icon={faPen} className="mr-2 h-3 w-3" />Edit brand</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={async () => { if (await api("", "PATCH", { archived: !project.archived_at })) { load(); refreshProjects(); toast.success(project.archived_at ? "Brand restored" : "Brand archived"); } }}>
+                    <FontAwesomeIcon icon={faBoxArchive} className="mr-2 h-3 w-3" />{project.archived_at ? "Restore brand" : "Archive brand"}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={async () => {
-                    if (!window.confirm(`Delete "${project.name}"? Tasks are kept but removed from the project.`)) return;
-                    if (await api("", "DELETE")) { await Promise.all([refreshProjects(), refreshTasks()]); router.push("/dashboard/actions/projects"); }
-                  }}><FontAwesomeIcon icon={faTrashCan} className="mr-2 h-3 w-3" />Delete project</DropdownMenuItem>
+                    if (!window.confirm(`Delete "${project.name}"? Its tasks are kept but no longer belong to a brand.`)) return;
+                    if (await api("", "DELETE")) { await Promise.all([refreshProjects(), refreshTasks()]); router.push("/dashboard/actions/brands"); }
+                  }}><FontAwesomeIcon icon={faTrashCan} className="mr-2 h-3 w-3" />Delete brand</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -195,9 +236,9 @@ export function ProjectView({ projectId }: { projectId: string }) {
               columns={kanbanColumns}
               columnOf={(t) => (columns.some((c) => c.id === t.board_column_id) ? t.board_column_id! : columns.find((c) => c.status_key === t.status)?.id ?? firstCol?.id ?? "")}
               tasks={visible}
-              onMove={(t, col) => updateTask(t.id, { board_column_id: col.id })}
+              onMove={(t, col) => (t.can_edit === false ? viewOnly() : updateTask(t.id, { board_column_id: col.id }))}
               onOpen={openTask}
-              onToggleDone={(t) => updateTask(t.id, { status: t.status === "done" ? "todo" : "done" })}
+              onToggleDone={(t) => (t.can_edit === false ? viewOnly() : updateTask(t.id, { status: t.status === "done" ? "todo" : "done" }))}
               onAdd={(col) => openQuickAdd({ project_id: projectId, board_column_id: col.id })}
               trailing={canManage ? (
                 <div className="w-56 shrink-0 px-3 pt-2.5">
@@ -210,6 +251,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
           {tool === "tasks" && view === "table" && (
             <BordioTable tasks={visible} columns={columns} onOpen={openTask} onCreate={() => openQuickAdd({ project_id: projectId, board_column_id: firstCol?.id })} />
           )}
+          {tool === "files" && <BrandFiles projectId={projectId} onOpenTask={(id) => { const t = tasks.find((x) => x.id === id); if (t) openTask(t); }} />}
           {tool === "calendar" && <WeeklyPlanner projectId={projectId} title={project.name} />}
           {tool === "notes" && <ProjectNotes projectId={projectId} />}
           {tool === "members" && (
@@ -224,7 +266,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
       </div>
 
       <EditProjectDialog open={editOpen} onOpenChange={setEditOpen} project={project}
-        onSave={async (b) => { if (await api("", "PATCH", b)) { setEditOpen(false); load(); refreshProjects(); refreshTasks(); toast.success("Project updated"); } }} />
+        onSave={async (b) => { if (await api("", "PATCH", b)) { setEditOpen(false); load(); refreshProjects(); refreshTasks(); toast.success("Brand updated"); } }} />
     </div>
   );
 }
@@ -238,7 +280,7 @@ function MembersTool({ members, canManage, workspaceMembers, teams, onAdd, onRem
     <div className="max-w-5xl">
       {canManage && (
         <div className="mb-4 flex items-center gap-3">
-          <span className="text-[13px] text-muted-foreground">Invite to project</span>
+          <span className="text-[13px] text-muted-foreground">Add to brand</span>
           <AssigneePicker value={[]} members={workspaceMembers.filter((m) => !members.some((p) => p.id === m.id))} teams={teams}
             onAddUsers={onAdd} onAddTeam={(tid) => onAdd(teams.find((t) => t.id === tid)?.member_ids ?? [])} onRemove={() => {}} />
         </div>
@@ -248,7 +290,7 @@ function MembersTool({ members, canManage, workspaceMembers, teams, onAdd, onRem
           <tr className="border-b text-left text-muted-foreground">
             <th className="py-2.5 font-semibold text-foreground">Active users <span className="ml-1 rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">{members.length}</span></th>
             <th className="py-2.5 font-normal">Email</th>
-            <th className="py-2.5 font-normal">Role in project</th>
+            <th className="py-2.5 font-normal">Role</th>
             <th className="py-2.5 font-normal">Status</th>
             <th />
           </tr>
@@ -265,15 +307,15 @@ function MembersTool({ members, canManage, workspaceMembers, teams, onAdd, onRem
               <td className="py-2.5">
                 {canManage && m.role !== "owner" ? (
                   <select value={m.role} onChange={(e) => onRole(m.id, e.target.value as "admin" | "member")} className="rounded bg-transparent py-1 hover:bg-muted focus:outline-none">
-                    <option value="member">Project member</option>
-                    <option value="admin">Project admin</option>
+                    <option value="member">Member</option>
+                    <option value="admin">Brand admin</option>
                   </select>
                 ) : ROLE_LABEL[m.role]}
               </td>
               <td className="py-2.5"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />Active</span></td>
               <td className="py-2.5 text-right">
                 {canManage && m.role !== "owner" && (
-                  <button className="opacity-0 group-hover:opacity-70" onClick={() => window.confirm(`Remove ${m.full_name} from the project?`) && onRemove(m.id)} aria-label="Remove">
+                  <button className="opacity-0 group-hover:opacity-70" onClick={() => window.confirm(`Remove ${m.full_name} from this brand?`) && onRemove(m.id)} aria-label="Remove">
                     <FontAwesomeIcon icon={faXmark} />
                   </button>
                 )}
@@ -297,10 +339,10 @@ function EditProjectDialog({ open, onOpenChange, project, onSave }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Edit project</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Edit brand</DialogTitle></DialogHeader>
         <div className="grid gap-3">
           <div className="flex gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Project name" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Brand name" />
             <Input value={key} onChange={(e) => setKey(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 6))} placeholder="KEY" className="w-24 font-mono" title="Task key prefix, e.g. DES" />
           </div>
           <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description" />

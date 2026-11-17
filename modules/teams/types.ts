@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { DollarSign, Phone, Mail, Handshake, Calendar } from "lucide-react";
+import type { LucideIcon } from "@/components/shared/fa-icons";
+import { DollarSign, Phone, Mail, Handshake, Calendar } from "@/components/shared/fa-icons";
 
 export type TargetType = "revenue" | "calls" | "emails" | "closures" | "meetings";
 export type TargetPeriod = "weekly" | "monthly" | "quarterly" | "yearly";

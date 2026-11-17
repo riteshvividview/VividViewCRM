@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PlayCircle, Info, Loader2, AlertTriangle, UserX, Clock,
   Upload, Download, FileSpreadsheet, Lock, Unlock, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { HRGuard } from "@/components/hrms/hr-guard";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

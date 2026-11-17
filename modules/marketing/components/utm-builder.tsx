@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, CheckCheck, Link2 } from "lucide-react";
+import { Copy, CheckCheck, Link2 } from "@/components/shared/fa-icons";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { UtmParams } from "../types";

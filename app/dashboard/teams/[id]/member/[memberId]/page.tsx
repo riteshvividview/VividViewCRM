@@ -3,7 +3,7 @@
 
 
 import Link from "next/link";
-import { ArrowLeft, Phone, Mail, Calendar, Handshake, TrendingUp } from "lucide-react";
+import { ArrowLeft, Phone, Mail, Calendar, Handshake, TrendingUp } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrophy, faLocationDot } from "@fortawesome/free-solid-svg-icons";
 import { useTeams } from "@/modules/teams/hooks/use-teams";

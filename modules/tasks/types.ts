@@ -43,28 +43,24 @@ export interface TimeBlock {
   task?: { id: string; title: string; status: TaskStatus; color: string | null; priority: TaskPriority; project: { id: string; name: string; color: string | null } | null } | null;
 }
 
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  type: string;
-  start_time: string;
-  end_time: string;
-  all_day: boolean;
-  attendees: string[];
-  notes: string | null;
-  video_call_link: string | null;
-  color_override: string | null;
-  created_by: string | null;
-}
+/** The three file sections of a task, plus media sent in chat. */
+export type TaskFileKind = "brief" | "reference" | "main" | "chat";
 
 export interface TaskAttachment {
   id: string;
+  kind: TaskFileKind;
+  /** Set when the reference was pasted as a link instead of uploaded. */
+  link_url: string | null;
+  /** Set when the stored file was removed by the 30-day retention rule. */
+  purged_at: string | null;
   file_name: string;
   size_bytes: number | null;
   mime_type: string | null;
   uploaded_by: string | null;
   created_at: string;
   url: string | null;
+  /** Link that saves the file instead of opening it. */
+  download_url?: string | null;
 }
 
 export interface SubTask {
@@ -147,6 +143,7 @@ export interface TaskProjectListItem {
 export interface TaskTeam {
   id: string;
   name: string;
+  color?: string | null;
   member_ids: string[];
 }
 
@@ -184,6 +181,16 @@ export interface Task {
   number: number | null;
   comment_count: number;
   attachment_count: number;
+  /** A task can only be completed once it has a main file. */
+  has_main_file: boolean;
+  /** The one team this task belongs to; only its members (and leads) see it. Null = everyone. */
+  team_id: string | null;
+  team: { id: string; name: string; color: string | null } | null;
+  /** False when the task is only viewable (another team's task seen from the Brands tab). */
+  can_edit?: boolean;
+  brief_note: string | null;
+  reference_note: string | null;
+  main_note: string | null;
   project: TaskProjectRef | null;
   board: TaskBoardRef | null;
   position: number;

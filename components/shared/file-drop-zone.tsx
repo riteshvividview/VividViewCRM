@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
-import { Upload, X, FileText, Image, FileSpreadsheet, File, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, X, FileText, Image, FileSpreadsheet, File, AlertCircle, CheckCircle2 } from "@/components/shared/fa-icons";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";

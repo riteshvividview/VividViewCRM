@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Search } from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";

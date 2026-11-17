@@ -23,6 +23,8 @@ const dayDiff = (iso: string) =>
 export function dueLabel(task: Task): string | null {
   if (!task.due_date || task.status === "done") return null;
   const d = dayDiff(task.due_date);
+  // Scheduled for the deadline day itself: nothing left to move.
+  if (task.planned_date && task.planned_date === task.due_date && d >= 0) return d === 0 ? "Last day today" : "Last day";
   if (d === 0) return "Due today";
   if (d === 1) return "Due tomorrow";
   if (d > 1) return `${d} days left`;

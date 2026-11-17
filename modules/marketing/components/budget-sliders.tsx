@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign } from "lucide-react";
+import { DollarSign } from "@/components/shared/fa-icons";
 import type { MarketingCampaign } from "../types";
 import { CAMPAIGN_TYPE_CONFIG } from "../types";
 import { cn } from "@/lib/utils";

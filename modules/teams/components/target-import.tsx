@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

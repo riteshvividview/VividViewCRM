@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { DealCard } from "./deal-card";
 import { DEAL_STAGES, STAGE_CONFIG, type Deal, type DealStage } from "../types";

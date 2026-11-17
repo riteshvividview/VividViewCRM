@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LayoutList, Columns, Table2, Plus, Upload, Download, Search } from "lucide-react";
+import { LayoutList, Columns, Table2, Plus, Upload, Download, Search } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";

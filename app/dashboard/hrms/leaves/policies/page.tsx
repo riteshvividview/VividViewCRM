@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Plus, ChevronDown, ChevronUp,
   Edit2, Trash2, Users, CheckCircle2,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

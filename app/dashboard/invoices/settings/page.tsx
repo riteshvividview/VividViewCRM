@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Building2, CreditCard, FileText } from "lucide-react";
+import { Save, Building2, CreditCard, FileText } from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

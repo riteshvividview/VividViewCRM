@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Search, UserPlus, Building2, MoreHorizontal, Eye, Trash2, Pencil,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { EmployeeEditDialog } from "@/components/hrms/employee-edit-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

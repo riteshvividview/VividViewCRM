@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminClient, getAuthContext } from "../_lib/helpers";
+import { getTaskSettings } from "../_lib/settings";
 
 /** Workspace members + teams, used to populate assignee pickers (multi-assign, team assign). */
 export async function GET() {
@@ -15,7 +16,9 @@ export async function GET() {
   if (profilesRes.error) return NextResponse.json({ error: profilesRes.error.message }, { status: 400 });
   if (teamsRes.error) return NextResponse.json({ error: teamsRes.error.message }, { status: 400 });
 
-  const members = (profilesRes.data ?? []).map((p) => ({
+  // People who cannot open the Tasks app should not be assignable or mentionable.
+  const { hr_access } = await getTaskSettings(admin, ctx.workspaceId);
+  const members = (profilesRes.data ?? []).filter((p) => hr_access !== "hidden" || p.role !== "hr").map((p) => ({
     id: p.user_id,
     full_name: p.full_name,
     avatar_url: p.avatar_url,

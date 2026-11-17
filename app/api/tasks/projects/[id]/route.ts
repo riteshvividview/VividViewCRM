@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ensureProjectBoard } from "../../_lib/board";
 import { loadProject } from "../_lib";
+import { readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,6 +46,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   if (!r.canManage) return NextResponse.json({ error: "Only the project owner or HR can change project settings" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
@@ -71,6 +74,8 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   if (!r.canManage) return NextResponse.json({ error: "Only the project owner or HR can delete a project" }, { status: 403 });
 
   await r.admin.from("tasks").update({ project_id: null, board_id: null, board_column_id: null }).eq("project_id", id);

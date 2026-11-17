@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, GripVertical } from "lucide-react";
+import { Plus, GripVertical } from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScorePill } from "@/components/shared/score-pill";

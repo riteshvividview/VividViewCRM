@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, TrendingUp, MousePointerClick, Users, Ban, AlertCircle } from "lucide-react";
+import { ArrowLeft, TrendingUp, MousePointerClick, Users, Ban, AlertCircle } from "@/components/shared/fa-icons";
 import type { Campaign } from "../types";
 import { STATUS_CONFIG } from "../types";
 import { cn } from "@/lib/utils";

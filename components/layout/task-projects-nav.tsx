@@ -3,37 +3,45 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "@/components/shared/fa-icons";
 import { cn } from "@/lib/utils";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 
 interface ProjectLink { id: string; name: string; color: string | null }
 
-/** Bordio-style "Projects" list in the main sidebar of the Tasks app. */
+/** "Brands" list in the main sidebar of the Tasks app. Only the CEO and team leads can add one. */
 export function TaskProjectsNav({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
   const [projects, setProjects] = useState<ProjectLink[]>([]);
   const [open, setOpen] = useState(true);
+  const role = useShellProfile()?.role;
+  const canCreate = role === "super_admin" || role === "team_lead";
 
   // Refetch on navigation so new / renamed / archived projects show up.
   useEffect(() => {
     fetch("/api/tasks/projects").then((r) => (r.ok ? r.json() : { projects: [] })).then((j) => setProjects(j.projects ?? [])).catch(() => {});
   }, [pathname]);
+  useEffect(() => {
+    const reload = () => { fetch("/api/tasks/projects").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setProjects(j.projects ?? []); }).catch(() => {}); };
+    window.addEventListener("tasks:changed", reload);
+    return () => window.removeEventListener("tasks:changed", reload);
+  }, []);
 
   if (collapsed) return null;
   return (
     <div className="mt-2">
       <div className="flex items-center justify-between px-3 py-1">
         <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-foreground">
-          <ChevronDown className={cn("h-3 w-3 transition-transform", !open && "-rotate-90")} />Projects
+          <ChevronDown className={cn("h-3 w-3 transition-transform", !open && "-rotate-90")} />Brands
         </button>
-        <Link href="/dashboard/actions/projects?new=1" title="New project" className="text-muted-foreground/70 hover:text-foreground"><Plus className="h-3.5 w-3.5" /></Link>
+        {canCreate && <Link href="/dashboard/actions/brands?new=1" title="New brand" className="text-muted-foreground/70 hover:text-foreground"><Plus className="h-3.5 w-3.5" /></Link>}
       </div>
       {open && (
         <div className="space-y-0.5">
           {projects.map((p) => {
-            const active = pathname === `/dashboard/actions/projects/${p.id}`;
+            const active = pathname === `/dashboard/actions/brands/${p.id}`;
             return (
-              <Link key={p.id} href={`/dashboard/actions/projects/${p.id}`}
+              <Link key={p.id} href={`/dashboard/actions/brands/${p.id}`}
                 className={cn("flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
                   active ? "bg-slate-100 font-medium text-foreground dark:bg-slate-800" : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800")}>
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: p.color ?? "#6366f1" }} />
@@ -41,7 +49,7 @@ export function TaskProjectsNav({ collapsed }: { collapsed: boolean }) {
               </Link>
             );
           })}
-          {projects.length === 0 && <p className="px-3 py-1 text-xs text-muted-foreground">No projects yet</p>}
+          {projects.length === 0 && <p className="px-3 py-1 text-xs text-muted-foreground">No brands yet</p>}
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, ChevronDown } from "lucide-react";
+import { MapPin, ChevronDown } from "@/components/shared/fa-icons";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";

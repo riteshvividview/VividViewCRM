@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, ChevronDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
+import { Download, ChevronDown, FileSpreadsheet, FileText, Printer } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,

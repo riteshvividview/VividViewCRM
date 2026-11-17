@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Clock, Calendar, MapPin, User, DollarSign, FileText,
   Upload, MessageSquare, CheckCircle, XCircle, Edit2, Save, X, Paperclip,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

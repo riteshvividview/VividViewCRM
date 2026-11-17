@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Mail, TrendingUp, Users, Send } from "lucide-react";
+import { Plus, Search, Mail, TrendingUp, Users, Send } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCampaigns } from "@/modules/mailing/hooks/use-campaigns";

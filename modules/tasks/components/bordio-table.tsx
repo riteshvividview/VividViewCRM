@@ -1,5 +1,6 @@
 "use client";
 
+import { dateLocale } from "@/lib/user-prefs";
 import { useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faComment } from "@fortawesome/free-regular-svg-icons";
@@ -8,7 +9,6 @@ import type { BoardColumn, Task } from "../types";
 import { STATUS_CONFIG } from "../types";
 import { dueLabel, isOverdue, initials } from "../lib/bordio";
 import { PriorityLabel, StatusIcon } from "./task-icons";
-import { formatMinutes } from "../dates";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -40,9 +40,9 @@ function Group({ title, count, tasks, columns, onOpen, onCreate, selectedId, def
                 <th className="w-40 py-2 font-normal">Status</th>
                 <th className="w-36 py-2 font-normal">Type</th>
                 <th className="w-28 py-2 font-normal">Assignee</th>
-                <th className="w-36 py-2 font-normal">Due date</th>
+                <th className="w-36 py-2 font-normal">Deadline</th>
                 <th className="w-24 py-2 font-normal">Priority</th>
-                <th className="w-24 py-2 pr-3 font-normal">Estimate</th>
+                <th className="w-36 py-2 pr-3 font-normal">Brand</th>
               </tr>
             </thead>
             <tbody>
@@ -68,11 +68,11 @@ function Group({ title, count, tasks, columns, onOpen, onCreate, selectedId, def
                       </span>
                     </td>
                     <td className={cn("py-2.5", isOverdue(t) && "text-red-500")}>
-                      {t.due_date ? new Date(`${t.due_date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : <span className="text-muted-foreground">—</span>}
+                      {t.due_date ? new Date(`${t.due_date}T00:00:00`).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" }) : <span className="text-muted-foreground">—</span>}
                       {due && t.due_date && <span className="ml-1.5 text-xs opacity-80">{due.replace("Due ", "")}</span>}
                     </td>
                     <td className="py-2.5"><PriorityLabel priority={t.priority} className={t.priority === "none" ? "text-muted-foreground" : ""} /></td>
-                    <td className="py-2.5 pr-3 text-muted-foreground">{t.estimated_hours ? formatMinutes(t.estimated_hours * 60) : "0h"}</td>
+                    <td className="py-2.5 pr-3">{t.project ? <span className="inline-flex max-w-full items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: t.project.color ?? "#6366f1" }} /><span className="truncate">{t.project.name}</span></span> : <span className="text-muted-foreground">—</span>}</td>
                   </tr>
                 );
               })}

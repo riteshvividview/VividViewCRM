@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Mail, Phone, Building2, Calendar, MoreHorizontal,
   Pencil, Check, X, Upload, Camera,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

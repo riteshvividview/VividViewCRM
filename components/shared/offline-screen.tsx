@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WifiOff, RefreshCw } from "lucide-react";
+import { WifiOff, RefreshCw } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 
 export function OfflineScreen() {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, Mail, Phone } from "lucide-react";
+import { Star, Mail, Phone } from "@/components/shared/fa-icons";
 import { ResourceManager, fmtINR, type Row } from "@/components/hrms/resource-manager";
 import { cn } from "@/lib/utils";
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Clock, Plus, Pencil, Trash2, Star, Moon, ArrowRightLeft, CalendarDays,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { HRGuard } from "@/components/hrms/hr-guard";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

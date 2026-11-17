@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Plus, Search, IndianRupee, TrendingUp, Clock,
   AlertTriangle, MoreHorizontal, Eye, Send,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Users } from "@/components/shared/fa-icons";
 import { ResourceManager, StatusPill, fmtDate } from "@/components/hrms/resource-manager";
 import { Button } from "@/components/ui/button";
 

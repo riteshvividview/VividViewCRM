@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { DEAL_STAGES, STAGE_CONFIG, type Deal } from "../types";
 import { formatCurrency, cn } from "@/lib/utils";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "@/components/shared/fa-icons";
 
 interface RevenueForecastProps {
   deals: Deal[];

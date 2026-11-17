@@ -140,7 +140,7 @@ const config: Config = {
         "slide-in-left": "slide-in-left 0.15s ease-out",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-poppins)", "Poppins", "system-ui", "sans-serif"],
       },
     },
   },

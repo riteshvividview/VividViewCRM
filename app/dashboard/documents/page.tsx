@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Clock, LayoutTemplate } from "lucide-react";
+import { Plus, Search, Clock, LayoutTemplate } from "@/components/shared/fa-icons";
 
 import { DocIcon } from "@/modules/documents/components/doc-icon";
 import { Button } from "@/components/ui/button";

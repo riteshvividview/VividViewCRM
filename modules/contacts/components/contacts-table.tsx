@@ -5,7 +5,7 @@ import {
   useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel,
   flexRender, type SortingState, type ColumnDef,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, MoreHorizontal, Mail, Phone, ExternalLink } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, MoreHorizontal, Mail, Phone, ExternalLink } from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

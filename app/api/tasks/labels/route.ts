@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
 
 export async function GET() {
   const ctx = await getAuthContext();
@@ -20,6 +20,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const body = await request.json();
   const name = (body.name ?? "").trim();

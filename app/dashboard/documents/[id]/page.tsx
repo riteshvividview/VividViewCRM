@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Check, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Trash2 } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { BlockEditor } from "@/modules/documents/components/block-editor";
 import { useDocuments } from "@/modules/documents/hooks/use-documents";

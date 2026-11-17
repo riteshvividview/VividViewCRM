@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScorePill } from "@/components/shared/score-pill";
 import { STATUS_CONFIG, type Lead, type LeadStatus } from "../types";
 import { getInitials, formatDate, cn } from "@/lib/utils";
-import { MoreHorizontal, Phone, Mail, Building2 } from "lucide-react";
+import { MoreHorizontal, Phone, Mail, Building2 } from "@/components/shared/fa-icons";
 
 const AVATAR_COLORS = ["bg-purple-100 text-purple-700","bg-blue-100 text-blue-700","bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700","bg-rose-100 text-rose-700"];
 

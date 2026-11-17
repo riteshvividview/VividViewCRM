@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Loader2, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Loader2, AlertTriangle } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

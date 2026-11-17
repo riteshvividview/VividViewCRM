@@ -5,6 +5,7 @@ export type NotificationType =
   | "mention"
   | "event_reminder"
   | "task_due"
+  | "task_completed"
   | "attendance_correction_request"
   | "attendance_correction_decision"
   | "attendance_monthly_processed"

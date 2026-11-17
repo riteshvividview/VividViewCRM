@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search } from "@/components/shared/fa-icons";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

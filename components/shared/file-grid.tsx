@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { FileText, Image, FileSpreadsheet, File, Download, Trash2, X } from "lucide-react";
+import { FileText, Image, FileSpreadsheet, File, Download, Trash2, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import type { UploadedFile } from "./file-drop-zone";
 import { formatBytes } from "./file-drop-zone";

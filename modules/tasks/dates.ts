@@ -1,4 +1,6 @@
-/** Local-date helpers for the planner (weeks start on Monday, dates as YYYY-MM-DD). */
+import { dateLocale, weekStartsOn } from "@/lib/user-prefs";
+
+/** Local-date helpers for the planner (dates as YYYY-MM-DD; the week starts on the day chosen in Preferences). */
 
 export function toISODate(d: Date): string {
   const y = d.getFullYear();
@@ -20,7 +22,7 @@ export function addDays(d: Date, n: number): Date {
 
 export function startOfWeek(d: Date): Date {
   const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  r.setDate(r.getDate() - ((r.getDay() + 6) % 7));
+  r.setDate(r.getDate() - ((r.getDay() - weekStartsOn() + 7) % 7));
   return r;
 }
 
@@ -35,8 +37,8 @@ export function todayISO(): string {
 export function formatWeekRange(start: Date): string {
   const end = addDays(start, 6);
   const sameMonth = start.getMonth() === end.getMonth();
-  const a = start.toLocaleDateString("en-IN", { day: "numeric", month: sameMonth ? undefined : "short" });
-  const b = end.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const a = start.toLocaleDateString(dateLocale(), { day: "numeric", month: sameMonth ? undefined : "short" });
+  const b = end.toLocaleDateString(dateLocale(), { day: "numeric", month: "short", year: "numeric" });
   return `${a} – ${b}`;
 }
 

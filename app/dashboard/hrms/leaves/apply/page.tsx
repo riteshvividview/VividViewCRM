@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, CalendarDays, Users, AlertCircle,
   CheckCircle2, Clock, Info,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";

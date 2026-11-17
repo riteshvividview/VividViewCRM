@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Plus, AlignLeft, AlignCenter, AlignRight, Code2 } from "lucide-react";
+import { GripVertical, Trash2, Plus, AlignLeft, AlignCenter, AlignRight, Code2 } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";

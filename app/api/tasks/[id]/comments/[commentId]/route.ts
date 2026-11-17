@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext, isHR } from "../../../_lib/helpers";
+import { adminClient, getAuthContext, isHR, readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
+import { canAccessTask } from "../../../_lib/teams";
 
 /** Soft-deletes a comment. Only the author or HR/admin can delete. */
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string; commentId: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const { id, commentId } = await params;
   const admin = adminClient();
@@ -17,7 +20,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     .eq("task_id", id)
     .eq("workspace_id", ctx.workspaceId)
     .maybeSingle();
-  if (!comment) return NextResponse.json({ error: "Comment not found" }, { status: 404 });
+  if (!comment || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Comment not found" }, { status: 404 });
 
   if (comment.author_id !== ctx.userId && !isHR(ctx.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

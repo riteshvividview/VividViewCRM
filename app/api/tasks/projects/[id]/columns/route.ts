@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { COLUMN_SELECT, ensureProjectBoard, type StatusKey } from "../../../_lib/board";
 import { loadProject } from "../../_lib";
+import { readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
 
 type Params = { params: Promise<{ id: string }> };
 const STATUS_KEYS: StatusKey[] = ["todo", "in_progress", "waiting", "done"];
@@ -11,6 +12,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const { ctx, admin } = r;
 
   const body = await request.json().catch(() => ({}));
@@ -36,6 +39,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const { ctx, admin } = r;
   const { columns } = await ensureProjectBoard(admin, ctx.workspaceId, id, ctx.userId);
   const body = await request.json().catch(() => ({}));
@@ -76,6 +81,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const { ctx, admin } = r;
   const columnId = request.nextUrl.searchParams.get("column_id");
   const { columns } = await ensureProjectBoard(admin, ctx.workspaceId, id, ctx.userId);

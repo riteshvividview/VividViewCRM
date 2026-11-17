@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, MoreHorizontal, CheckCircle, XCircle } from "lucide-react";
+import { Clock, MoreHorizontal, CheckCircle, XCircle } from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";

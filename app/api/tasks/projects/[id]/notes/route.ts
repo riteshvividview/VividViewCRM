@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loadProject } from "../../_lib";
+import { readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -20,6 +21,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const body = await request.json().catch(() => ({}));
   const { data, error } = await r.admin.from("task_project_notes").insert({
     workspace_id: r.ctx.workspaceId, project_id: id,
@@ -34,6 +37,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const body = await request.json().catch(() => ({}));
   const update: Record<string, unknown> = { updated_by: r.ctx.userId, updated_at: new Date().toISOString() };
   if (typeof body.title === "string") update.title = body.title.trim() || "Untitled";
@@ -53,6 +58,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const noteId = request.nextUrl.searchParams.get("note_id");
   const { data: note } = await r.admin.from("task_project_notes").select("created_by").eq("id", noteId ?? "").eq("project_id", id).maybeSingle();
   if (!note) return NextResponse.json({ error: "Note not found" }, { status: 404 });

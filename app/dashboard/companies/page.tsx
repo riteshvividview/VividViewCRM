@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Building2, Globe, Users, MapPin, GitBranch } from "lucide-react";
+import { Plus, Search, Building2, Globe, Users, MapPin, GitBranch } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

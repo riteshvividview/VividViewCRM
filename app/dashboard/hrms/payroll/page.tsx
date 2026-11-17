@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IndianRupee, Users, TrendingUp, CheckCircle, PlayCircle, Settings2, Eye, Trash2, Loader2, Printer } from "lucide-react";
+import { IndianRupee, Users, TrendingUp, CheckCircle, PlayCircle, Settings2, Eye, Trash2, Loader2, Printer } from "@/components/shared/fa-icons";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

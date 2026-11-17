@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = [
   "/auth/callback",
   "/auth/verify-otp",
   "/auth/reset-password",
+  "/auth/mfa",
 ];
 
 export async function middleware(request: NextRequest) {
@@ -50,7 +51,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (session && (pathname === "/" || isPublicRoute) && !pathname.startsWith("/auth/verify-otp")) {
+  if (session && (pathname === "/" || isPublicRoute) && !pathname.startsWith("/auth/verify-otp") && !pathname.startsWith("/auth/mfa")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

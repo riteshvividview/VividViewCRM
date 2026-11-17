@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Printer } from "lucide-react";
+import { Loader2, Printer } from "@/components/shared/fa-icons";
 import { ResourceManager, StatusPill, fmtINR, empName } from "@/components/hrms/resource-manager";
 import { Button } from "@/components/ui/button";
 import { MONTHS } from "@/components/hrms/payslip-view";

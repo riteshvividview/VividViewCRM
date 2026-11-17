@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Fingerprint, Plus, Pencil, Trash2, RefreshCw, Wifi, MapPin, History, ScrollText,
   CheckCircle2, XCircle, AlertTriangle, Clock, Loader2,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { HRGuard } from "@/components/hrms/hr-guard";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";

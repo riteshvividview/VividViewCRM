@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftRight, Check, LayoutGrid, Users, CircleCheck, Handshake, Receipt, ShieldCheck } from "lucide-react";
+import { ArrowLeftRight, Check, LayoutGrid, Users, CircleCheck, Handshake, Receipt, ShieldCheck } from "@/components/shared/fa-icons";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger,

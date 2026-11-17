@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   UserRoundSearch, Handshake, CircleCheck, DollarSign,
   ArrowUpRight, ArrowDownRight, CalendarDays, Filter,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTeams, MOCK_MEMBERS } from "@/modules/teams/hooks/use-teams";

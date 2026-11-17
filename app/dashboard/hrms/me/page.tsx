@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@/components/shared/fa-icons";
 import { createClient } from "@/lib/supabase/client";
 import { EmployeeDetail } from "@/components/hrms/employee-detail";
 

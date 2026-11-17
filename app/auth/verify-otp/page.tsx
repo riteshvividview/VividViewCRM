@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Mail, RefreshCw, UserPlus } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, RefreshCw, UserPlus } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { AuthLogo } from "@/components/shared/auth-logo";
 import { toast } from "sonner";

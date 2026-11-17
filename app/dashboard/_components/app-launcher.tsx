@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowUpRight, Users, CircleCheck, Handshake, Receipt, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowUpRight, Users, CircleCheck, Handshake, Receipt, ShieldCheck, Sparkles } from "@/components/shared/fa-icons";
 import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
-import { getAllowedApps, getAppHome, type AppId, type ModuleId } from "@/lib/rbac/modules";
+import { getAllowedApps, getComingSoonApps, getAppHome, type AppId, type ModuleId } from "@/lib/rbac/modules";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, React.ElementType> = { Users, CircleCheck, Handshake, Receipt, ShieldCheck };
@@ -12,10 +12,10 @@ const ICONS: Record<string, React.ElementType> = { Users, CircleCheck, Handshake
 // Per-app visual identity: glow colour and a few headline features shown on the card.
 const STYLE: Record<AppId, { glow: string; ring: string; chips: string[] }> = {
   hrms:    { glow: "bg-purple-500/25",  ring: "group-hover:ring-purple-500/40",  chips: ["Attendance", "Leave", "Payroll", "Performance"] },
-  tasks:   { glow: "bg-blue-500/25",    ring: "group-hover:ring-blue-500/40",    chips: ["Boards", "Calendar", "Projects", "Teams"] },
+  tasks:   { glow: "bg-blue-500/25",    ring: "group-hover:ring-blue-500/40",    chips: ["Brands", "Boards", "Files", "Chat"] },
   crm:     { glow: "bg-emerald-500/25", ring: "group-hover:ring-emerald-500/40", chips: ["Leads", "Deals", "Contacts", "Campaigns"] },
   finance: { glow: "bg-amber-500/25",   ring: "group-hover:ring-amber-500/40",   chips: ["Invoices", "Payments", "Settings"] },
-  admin:   { glow: "bg-slate-500/25",   ring: "group-hover:ring-slate-500/40",   chips: ["Users", "Roles", "Reports"] },
+  admin:   { glow: "bg-slate-500/25",   ring: "group-hover:ring-slate-500/40",   chips: ["Users", "Roles", "App access"] },
 };
 
 function greeting() {
@@ -28,6 +28,7 @@ export function AppLauncher() {
   const allowedModuleIds = useAllowedModuleIds();
   const allowed = useMemo(() => new Set<ModuleId>(allowedModuleIds), [allowedModuleIds]);
   const apps = useMemo(() => getAllowedApps(allowed), [allowed]);
+  const soon = useMemo(() => getComingSoonApps(allowed), [allowed]);
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
 
   return (
@@ -94,6 +95,26 @@ export function AppLauncher() {
                   ))}
                 </div>
               </Link>
+            );
+          })}
+          {soon.map((app) => {
+            const Icon = ICONS[app.icon] ?? Users;
+            return (
+              <div key={app.id} aria-disabled className="relative cursor-not-allowed overflow-hidden rounded-2xl border border-dashed bg-card/60 p-6">
+                <div className="flex items-start justify-between">
+                  <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white opacity-50 grayscale", app.accent)}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">Coming soon</span>
+                </div>
+                <h3 className="mt-5 text-lg font-semibold text-muted-foreground">{app.label}</h3>
+                <p className="mt-1 text-sm text-muted-foreground/80">{app.description}</p>
+                <div className="mt-5 flex flex-wrap gap-1.5 opacity-60">
+                  {STYLE[app.id].chips.map((c) => (
+                    <span key={c} className="rounded-full border bg-background/70 px-2.5 py-0.5 text-xs text-muted-foreground">{c}</span>
+                  ))}
+                </div>
+              </div>
             );
           })}
         </div>

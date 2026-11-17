@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loadProject } from "../../_lib";
+import { readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -9,6 +10,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   if (!r.canManage) return NextResponse.json({ error: "Only the project owner or HR can manage members" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
@@ -29,6 +32,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const userId = request.nextUrl.searchParams.get("user_id");
   if (!userId) return NextResponse.json({ error: "user_id is required" }, { status: 400 });
   if (!r.canManage && userId !== r.ctx.userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -46,6 +51,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await loadProject(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   if (!r.canManage) return NextResponse.json({ error: "Only the project owner or admins can change roles" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   if (!["admin", "member"].includes(body.role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });

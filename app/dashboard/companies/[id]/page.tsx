@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Globe, MapPin, Users, Building2, GitBranch,
   Pencil, Check, X, Camera, ExternalLink,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

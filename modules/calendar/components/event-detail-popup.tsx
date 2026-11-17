@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Trash2, Video, Link2, Users, Clock, CalendarDays } from "lucide-react";
+import { X, Trash2, Video, Link2, Users, Clock, CalendarDays } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 import { config as faConfig } from "@fortawesome/fontawesome-svg-core";
@@ -10,7 +10,7 @@ import { ThemeProvider } from "@/components/shared/theme-provider";
 import { ThemeAccentProvider } from "@/components/shared/theme-accent-provider";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"] });
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Vivid View CRM",
@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      <body className={`${poppins.variable} ${poppins.className}`} suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <ThemeAccentProvider />
           {children}
           <Toaster position="bottom-right" richColors />

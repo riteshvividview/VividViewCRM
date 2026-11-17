@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Star } from "@/components/shared/fa-icons";
 import { ResourceManager, StatusPill, fmtDate, empName, type Row, type Me } from "@/components/hrms/resource-manager";
 
 const TYPES = [{ value: "self", label: "Self" }, { value: "manager", label: "Manager" }, { value: "peer", label: "Peer" }];

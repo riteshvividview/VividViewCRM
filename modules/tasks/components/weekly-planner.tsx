@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Inbox, CalendarPlus, PanelRightClose, PanelRightOpen, AlertCircle, Video, Check } from "lucide-react";
+import { dateLocale } from "@/lib/user-prefs";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Plus, Inbox, PanelRightClose, PanelRightOpen, AlertCircle, X } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasksContext } from "../context/tasks-context";
 import { TaskCard, TASK_DRAG_TYPE } from "./task-card";
-import { EventDialog, type EventDraft } from "./event-dialog";
-import type { CalendarEvent, Task } from "../types";
-import { addDays, formatMinutes, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
+import type { Task } from "../types";
+import { addDays, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
 import { cn } from "@/lib/utils";
 
 type Scope = "me" | "all" | string; // string = a member's user id
@@ -40,35 +40,48 @@ function InlineAdd({ onAdd, placeholder = "Add task" }: { onAdd: (title: string)
   );
 }
 
-/** Bordio-style weekly planner: 7 day columns, drag & drop, inline add, events, waiting list. */
-export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: string; title?: string } = {}) {
-  const { tasks, loading, members, teams, currentUserId, addTask, updateTask, openTask, openQuickAdd } = useTasksContext();
+/** Weekly planner: 7 day columns, drag & drop, inline add and a waiting list. */
+export function WeeklyPlanner({ projectId, teamId, title = "Planner" }: { projectId?: string; teamId?: string; title?: string } = {}) {
+  const { tasks, loading, members, projects, currentUserId, addTask, updateTask, openTask, openQuickAdd, reminders } = useTasksContext();
+  const [hideReminders, setHideReminders] = useState(false);
+  const [brand, setBrand] = useState<string>("all");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const [scope, setScope] = useState<Scope>(projectId ? "all" : "me");
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [eventDialog, setEventDialog] = useState<{ event: CalendarEvent | null; draft: EventDraft | null } | null>(null);
+  const [scope, setScope] = useState<Scope>(projectId || teamId ? "all" : "me");
   const [dragOver, setDragOver] = useState<string | null>(null);
-  const [showWaiting, setShowWaiting] = useState(true);
+  const [showWaiting, setShowWaiting] = useState(false);
+  const [colWidth, setColWidth] = useState(240);
   const [showDone, setShowDone] = useState(true);
+
+  useEffect(() => {
+    try { const w = Number(localStorage.getItem("planner:colWidth")); if (w >= 160 && w <= 480) setColWidth(w); } catch {}
+  }, []);
+
+  /** Drag a column's right edge to resize every day column (remembered per browser). */
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX, startW = colWidth;
+    let w = startW;
+    const move = (ev: MouseEvent) => { w = Math.min(480, Math.max(160, startW + ev.clientX - startX)); setColWidth(w); };
+    const up = () => {
+      window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up);
+      document.body.style.cursor = ""; document.body.style.userSelect = "";
+      try { localStorage.setItem("planner:colWidth", String(w)); } catch {}
+    };
+    document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+  }
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const today = todayISO();
   const scopeUser = scope === "me" ? currentUserId : scope === "all" ? null : scope;
 
-  const loadEvents = useCallback(async () => {
-    const from = weekStart.toISOString();
-    const to = addDays(weekStart, 7).toISOString();
-    const res = await fetch(`/api/tasks/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-    if (res.ok) setEvents((await res.json()).events ?? []);
-  }, [weekStart]);
-
-  useEffect(() => { loadEvents(); }, [loadEvents]);
-
   const visible = useMemo(
     () => tasks.filter((t) =>
       (!projectId || t.project_id === projectId) &&
+      (!teamId || t.team_id === teamId) &&
+      (brand === "all" || (brand === "none" ? !t.project_id : t.project_id === brand)) &&
       (!scopeUser || t.assignees.some((a) => a.id === scopeUser) || (t.assignees.length === 0 && t.created_by === scopeUser))),
-    [tasks, scopeUser, projectId],
+    [tasks, scopeUser, projectId, teamId, brand],
   );
 
   const byDay = useMemo(() => {
@@ -86,15 +99,6 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
 
   const waiting = useMemo(() => visible.filter((t) => !t.planned_date && t.status !== "done"), [visible]);
   const overdue = useMemo(() => visible.filter((t) => t.planned_date && t.planned_date < today && t.status !== "done"), [visible, today]);
-
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    for (const e of events) {
-      const key = toISODate(new Date(e.start_time));
-      map.set(key, [...(map.get(key) ?? []), e]);
-    }
-    return map;
-  }, [events]);
 
   function toggleDone(t: Task) {
     updateTask(t.id, { status: t.status === "done" ? "todo" : "done" });
@@ -115,7 +119,7 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
   });
 
   const createFor = (plannedDate: string | null) => (title: string) =>
-    addTask({ title, planned_date: plannedDate, project_id: projectId ?? null, assignee_ids: scopeUser ? [scopeUser] : undefined });
+    addTask({ title, planned_date: plannedDate, project_id: projectId ?? null, team_id: teamId ?? null, assignee_ids: scopeUser ? [scopeUser] : undefined });
 
   return (
     <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[520px]">
@@ -129,6 +133,16 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
         </div>
         <span className="text-sm font-medium">{formatWeekRange(weekStart)}</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!projectId && <Select value={brand} onValueChange={setBrand}>
+            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All brands</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: p.color ?? "#6366f1" }} />{p.name}</span></SelectItem>
+              ))}
+              <SelectItem value="none">No brand</SelectItem>
+            </SelectContent>
+          </Select>}
           {!projectId && <Select value={scope} onValueChange={setScope}>
             <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -140,28 +154,45 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />Show done
           </label>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => {
-            const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1);
-            setEventDialog({ event: null, draft: { start: s, end: new Date(s.getTime() + 3600_000) } });
-          }}>
-            <CalendarPlus className="h-4 w-4 mr-1.5" />Event
-          </Button>
-          <Button size="sm" className="h-8" onClick={() => openQuickAdd({ planned_date: today, project_id: projectId })}><Plus className="h-4 w-4 mr-1.5" />Task</Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" title={showWaiting ? "Hide waiting list" : "Show waiting list"} onClick={() => setShowWaiting((v) => !v)}>
+          <Button size="sm" className="h-8" onClick={() => openQuickAdd({ planned_date: today, project_id: projectId, team_id: teamId })}><Plus className="h-4 w-4 mr-1.5" />Task</Button>
+          <Button variant="ghost" size="icon" className="hidden h-8 w-8 md:inline-flex" title={showWaiting ? "Hide waiting list" : "Show waiting list"} onClick={() => setShowWaiting((v) => !v)}>
             {showWaiting ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
+      {!projectId && !hideReminders && reminders.length > 0 && (() => {
+        const overdueCount = reminders.filter((r) => r.days < 0).length;
+        const todayCount = reminders.filter((r) => r.days === 0).length;
+        const tomorrowCount = reminders.filter((r) => r.days === 1).length;
+        const behind = overdueCount > 0;
+        return (
+          <div className={cn("mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-2.5 text-[13px]", behind ? "border-red-500/30 bg-red-500/[0.06]" : "border-amber-500/30 bg-amber-500/[0.06]")}>
+            <AlertCircle className={cn("h-4 w-4", behind ? "text-red-500" : "text-amber-500")} />
+            <span className="font-medium">
+              {behind ? "You are behind: " : "Deadlines coming up: "}
+              {[overdueCount && `${overdueCount} overdue`, todayCount && `${todayCount} due today`, tomorrowCount && `${tomorrowCount} due tomorrow`].filter(Boolean).join(" · ")}
+            </span>
+            <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+              {reminders.slice(0, 4).map((r) => (
+                <button key={r.id} onClick={() => { const t = tasks.find((x) => x.id === r.id); if (t) openTask(t); }}
+                  className="max-w-[220px] truncate rounded-full border bg-background px-2.5 py-0.5 text-xs hover:border-foreground/30">{r.title}</button>
+              ))}
+              {reminders.length > 4 && <span className="self-center text-xs text-muted-foreground">+{reminders.length - 4} more</span>}
+            </span>
+            <button onClick={() => setHideReminders(true)} aria-label="Dismiss" className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+          </div>
+        );
+      })()}
+
       <div className="flex flex-1 min-h-0 gap-3">
         {/* Week */}
         <div className="flex-1 min-w-0 overflow-x-auto">
-          <div className="grid h-full min-w-[980px] grid-cols-7 gap-2">
+          <div className="grid h-full gap-3" style={{ gridTemplateColumns: `repeat(7, minmax(${colWidth}px, 1fr))` }}>
             {days.map((d) => {
               const iso = toISODate(d);
               const list = byDay.get(iso) ?? [];
-              const dayEvents = eventsByDay.get(iso) ?? [];
-              const minutes = list.filter((t) => t.status !== "done").reduce((s, t) => s + (t.estimated_hours ?? 0) * 60, 0);
+              const openCount = list.filter((t) => t.status !== "done").length;
               const isToday = iso === today;
               const isPast = iso < today;
               return (
@@ -169,15 +200,18 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
                   key={iso}
                   {...dropProps(iso, iso)}
                   className={cn(
-                    "group/day flex flex-col min-h-0 rounded-xl border bg-muted/30 transition-colors",
+                    "group/day relative flex flex-col min-h-0 rounded-xl border bg-muted/30 transition-colors",
                     isToday && "border-primary/40 bg-primary/[0.03]",
                     dragOver === iso && "ring-2 ring-primary/40 bg-primary/5",
                   )}
                 >
+                  <div onMouseDown={startResize} onDoubleClick={() => { setColWidth(240); try { localStorage.removeItem("planner:colWidth"); } catch {} }}
+                    title="Drag to resize columns, double-click to reset"
+                    className="absolute -right-2 top-0 z-10 h-full w-2.5 cursor-col-resize rounded transition-colors hover:bg-primary/30" />
                   <header className="flex items-center justify-between px-3 pt-2.5 pb-2">
                     <div className="flex items-baseline gap-1.5">
                       <span className={cn("text-xs font-medium uppercase", isPast ? "text-muted-foreground/60" : "text-muted-foreground")}>
-                        {d.toLocaleDateString("en-IN", { weekday: "short" })}
+                        {d.toLocaleDateString(dateLocale(), { weekday: "short" })}
                       </span>
                       <span className={cn(
                         "text-sm font-semibold",
@@ -187,34 +221,12 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
                         {d.getDate()}
                       </span>
                     </div>
-                    {minutes > 0 && <span className="text-[10px] text-muted-foreground">{formatMinutes(minutes)}</span>}
+                    {openCount > 0 && <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">{openCount}</span>}
                   </header>
 
                   <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 space-y-1.5">
-                    {dayEvents.map((ev) => (
-                      <button
-                        key={ev.id}
-                        onClick={() => setEventDialog({ event: ev, draft: null })}
-                        className="w-full text-left rounded-md px-2 py-1 text-[11px] leading-tight bg-background border border-dashed hover:border-foreground/30"
-                        style={ev.color_override ? { borderLeft: `3px solid ${ev.color_override}` } : undefined}
-                      >
-                        <span className="text-muted-foreground">
-                          {ev.all_day ? "All day" : new Date(ev.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                        </span>{" "}
-                        <span className="font-medium">{ev.title}</span>
-                        {ev.video_call_link && <Video className="inline h-3 w-3 ml-1 text-muted-foreground" />}
-                      </button>
-                    ))}
                     {loading && list.length === 0 && [0, 1].map((i) => <div key={i} className="h-14 rounded-lg bg-muted/60 animate-pulse" />)}
                     {list.map((t) => <TaskCard key={t.id} task={t} onOpen={openTask} onToggleDone={toggleDone} />)}
-                    {list.length === 0 && dayEvents.length === 0 && (
-                      <div className="flex justify-center gap-3 py-6 opacity-0 transition-opacity group-hover/day:opacity-100">
-                        <button title="Add task" onClick={() => openQuickAdd({ planned_date: iso, project_id: projectId })}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border text-muted-foreground hover:border-foreground/40 hover:text-foreground"><Check className="h-4 w-4" /></button>
-                        <button title="Add event" onClick={() => { const s = new Date(`${iso}T10:00`); setEventDialog({ event: null, draft: { start: s, end: new Date(s.getTime() + 3600_000) } }); }}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border text-muted-foreground hover:border-foreground/40 hover:text-foreground"><CalendarPlus className="h-4 w-4" /></button>
-                      </div>
-                    )}
                     <InlineAdd onAdd={createFor(iso)} />
                   </div>
                 </section>
@@ -250,17 +262,6 @@ export function WeeklyPlanner({ projectId, title = "Planner" }: { projectId?: st
         )}
       </div>
 
-      <EventDialog
-        open={!!eventDialog}
-        onOpenChange={(o) => !o && setEventDialog(null)}
-        event={eventDialog?.event ?? null}
-        draft={eventDialog?.draft ?? null}
-        members={members}
-        teams={teams}
-        currentUserId={currentUserId}
-        onSaved={() => loadEvents()}
-        onDeleted={(id) => setEvents((e) => e.filter((x) => x.id !== id))}
-      />
     </div>
   );
 }

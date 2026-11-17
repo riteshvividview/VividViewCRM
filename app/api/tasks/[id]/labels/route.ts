@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../../_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
 import { TASK_SELECT, attachRelations, type RawTask } from "../../_lib/serialize";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canAccessTask } from "../../_lib/teams";
 
 async function loadTask(admin: SupabaseClient, id: string, workspaceId: string) {
   const { data } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", workspaceId).maybeSingle();
@@ -20,11 +21,13 @@ async function respondWithTask(admin: SupabaseClient, id: string) {
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const { id } = await params;
   const admin = adminClient();
   const existing = await loadTask(admin, id, ctx.workspaceId);
-  if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const body = await request.json();
   const labelId: string | undefined = body.label_id;
@@ -53,11 +56,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
 
   const { id } = await params;
   const admin = adminClient();
   const existing = await loadTask(admin, id, ctx.workspaceId);
-  if (!existing) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const body = await request.json();
   const labelId: string | undefined = body.label_id;

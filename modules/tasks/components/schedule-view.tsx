@@ -1,15 +1,15 @@
 "use client";
 
+import { dateLocale, formatTime } from "@/lib/user-prefs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, CalendarPlus, X, GripVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, GripVertical } from "@/components/shared/fa-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useTasksContext } from "../context/tasks-context";
-import { EventDialog, type EventDraft } from "./event-dialog";
 import { TASK_DRAG_TYPE } from "./task-card";
-import type { CalendarEvent, TimeBlock } from "../types";
+import type { TimeBlock } from "../types";
 import { addDays, formatMinutes, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
 import { cn } from "@/lib/utils";
 
@@ -29,13 +29,11 @@ function at(day: Date, minutes: number) {
 
 type Slot = { day: Date; minutes: number };
 
-/** Hourly week schedule with time blocks (task work time) and events, Bordio-style. */
+/** Hourly week schedule with time blocks (task work time). */
 export function ScheduleView() {
-  const { tasks, members, teams, currentUserId, openTask } = useTasksContext();
+  const { tasks, currentUserId, openTask } = useTasksContext();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [blocks, setBlocks] = useState<TimeBlock[]>([]);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [eventDialog, setEventDialog] = useState<{ event: CalendarEvent | null; draft: EventDraft | null } | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [now, setNow] = useState<Date | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -46,12 +44,8 @@ export function ScheduleView() {
   const load = useCallback(async () => {
     const from = encodeURIComponent(weekStart.toISOString());
     const to = encodeURIComponent(addDays(weekStart, 7).toISOString());
-    const [b, e] = await Promise.all([
-      fetch(`/api/tasks/time-blocks?from=${from}&to=${to}`).then((r) => r.json()).catch(() => ({})),
-      fetch(`/api/tasks/events?from=${from}&to=${to}`).then((r) => r.json()).catch(() => ({})),
-    ]);
+    const b = await fetch(`/api/tasks/time-blocks?from=${from}&to=${to}`).then((r) => r.json()).catch(() => ({}));
     setBlocks(b.blocks ?? []);
-    setEvents(e.events ?? []);
   }, [weekStart]);
 
   useEffect(() => { load(); }, [load]);
@@ -112,9 +106,6 @@ export function ScheduleView() {
     if (task) createBlock(task.id, at(day, minutes), Math.max(SNAP_MIN, Math.round((task.estimated_hours ?? 1) * 60)));
   }
 
-  const allDay = events.filter((e) => e.all_day);
-  const timed = events.filter((e) => !e.all_day);
-
   function layout(startIso: string, endIso: string, day: Date) {
     const s = new Date(startIso), e = new Date(endIso);
     const dayStart = at(day, 0).getTime();
@@ -131,10 +122,6 @@ export function ScheduleView() {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addDays(w, -7))}><ChevronLeft className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addDays(w, 7))}><ChevronRight className="h-4 w-4" /></Button>
         <span className="text-sm font-medium">{formatWeekRange(weekStart)}</span>
-        <Button size="sm" variant="outline" className="h-8 ml-auto" onClick={() => {
-          const s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1);
-          setEventDialog({ event: null, draft: { start: s, end: new Date(s.getTime() + 3600_000) } });
-        }}><CalendarPlus className="h-4 w-4 mr-1.5" />Event</Button>
       </div>
 
       <div className="flex flex-1 min-h-0 gap-3">
@@ -146,13 +133,8 @@ export function ScheduleView() {
               const iso = toISODate(d);
               return (
                 <div key={iso} className="px-2 py-2 border-l text-center">
-                  <p className="text-[11px] uppercase text-muted-foreground">{d.toLocaleDateString("en-IN", { weekday: "short" })}</p>
+                  <p className="text-[11px] uppercase text-muted-foreground">{d.toLocaleDateString(dateLocale(), { weekday: "short" })}</p>
                   <p className={cn("mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold", iso === today && "bg-primary text-primary-foreground")}>{d.getDate()}</p>
-                  <div className="mt-1 space-y-0.5">
-                    {allDay.filter((e) => toISODate(new Date(e.start_time)) === iso).map((e) => (
-                      <button key={e.id} onClick={() => setEventDialog({ event: e, draft: null })} className="block w-full truncate rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">{e.title}</button>
-                    ))}
-                  </div>
                 </div>
               );
             })}
@@ -186,21 +168,6 @@ export function ScheduleView() {
                       <div key={h} className="absolute inset-x-0 border-t border-border/60 pointer-events-none" style={{ top: h * HOUR_PX }} />
                     ))}
 
-                    {timed.filter((e) => toISODate(new Date(e.start_time)) === iso).map((e) => {
-                      const { top, height } = layout(e.start_time, e.end_time, d);
-                      return (
-                        <button
-                          key={e.id}
-                          onClick={() => setEventDialog({ event: e, draft: null })}
-                          className="absolute left-1 right-1 overflow-hidden rounded-md border border-dashed bg-background px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm hover:border-foreground/40"
-                          style={{ top, height, borderLeft: `3px solid ${e.color_override ?? "#64748b"}` }}
-                        >
-                          <p className="font-medium truncate">{e.title}</p>
-                          <p className="text-muted-foreground">{new Date(e.start_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
-                        </button>
-                      );
-                    })}
-
                     {blocks.filter((b) => toISODate(new Date(b.start_at)) === iso).map((b) => {
                       const { top, height } = layout(b.start_at, b.end_at, d);
                       const task = tasks.find((t) => t.id === b.task_id);
@@ -221,7 +188,7 @@ export function ScheduleView() {
                         >
                           <p className="font-medium truncate pr-4">{task?.title ?? b.task?.title ?? "Task"}</p>
                           <p className="opacity-80">
-                            {new Date(b.start_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })} · {formatMinutes((new Date(b.end_at).getTime() - new Date(b.start_at).getTime()) / 60000)}
+                            {formatTime(new Date(b.start_at))} · {formatMinutes((new Date(b.end_at).getTime() - new Date(b.start_at).getTime()) / 60000)}
                           </p>
                           <button
                             aria-label="Remove time block"
@@ -265,7 +232,7 @@ export function ScheduleView() {
               >
                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{t.title}</span>
-                {t.estimated_hours ? <span className="text-[10px] text-muted-foreground">{formatMinutes(t.estimated_hours * 60)}</span> : null}
+                
               </div>
             ))}
           </div>
@@ -277,30 +244,17 @@ export function ScheduleView() {
         slot={slot}
         onClose={() => setSlot(null)}
         candidates={candidates}
-        onEvent={(s) => { setSlot(null); setEventDialog({ event: null, draft: { start: s, end: new Date(s.getTime() + 3600_000) } }); }}
         onBlock={(taskId, s, mins) => { setSlot(null); createBlock(taskId, s, mins); }}
       />
 
-      <EventDialog
-        open={!!eventDialog}
-        onOpenChange={(o) => !o && setEventDialog(null)}
-        event={eventDialog?.event ?? null}
-        draft={eventDialog?.draft ?? null}
-        members={members}
-        teams={teams}
-        currentUserId={currentUserId}
-        onSaved={() => load()}
-        onDeleted={(id) => setEvents((e) => e.filter((x) => x.id !== id))}
-      />
     </div>
   );
 }
 
-function SlotDialog({ slot, onClose, candidates, onEvent, onBlock }: {
+function SlotDialog({ slot, onClose, candidates, onBlock }: {
   slot: Slot | null;
   onClose: () => void;
   candidates: { id: string; title: string; estimated_hours: number | null }[];
-  onEvent: (start: Date) => void;
   onBlock: (taskId: string, start: Date, minutes: number) => void;
 }) {
   const [taskId, setTaskId] = useState("");
@@ -312,7 +266,7 @@ function SlotDialog({ slot, onClose, candidates, onEvent, onBlock }: {
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{start.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })} · {start.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</DialogTitle>
+          <DialogTitle>{start.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "short" })} · {formatTime(start)}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <p className="text-sm font-medium">Block time for a task</p>
@@ -327,8 +281,8 @@ function SlotDialog({ slot, onClose, candidates, onEvent, onBlock }: {
             min
           </div>
         </div>
-        <DialogFooter className="gap-2 sm:justify-between">
-          <Button variant="outline" onClick={() => onEvent(start)}><CalendarPlus className="h-4 w-4 mr-1.5" />New event instead</Button>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button disabled={!taskId} onClick={() => onBlock(taskId, start, Math.max(15, minutes))}>Block time</Button>
         </DialogFooter>
       </DialogContent>

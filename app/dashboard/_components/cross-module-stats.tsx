@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, TrendingUp, ClipboardList, CalendarOff, Loader2 } from "lucide-react";
+import { Users, TrendingUp, ClipboardList, CalendarOff, Loader2 } from "@/components/shared/fa-icons";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../../_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
+import { canAccessTask } from "../../_lib/teams";
 
 type Params = { params: Promise<{ id: string }> };
 const SELECT = "id, user_id, started_at, ended_at, duration_minutes, description, is_manual, created_at";
@@ -10,7 +11,7 @@ async function load(id: string) {
   if (!ctx) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   const admin = adminClient();
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return { error: NextResponse.json({ error: "Task not found" }, { status: 404 }) };
+  if (!task || !(await canAccessTask(admin, ctx, id))) return { error: NextResponse.json({ error: "Task not found" }, { status: 404 }) };
   return { ctx, admin };
 }
 
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await load(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const { ctx, admin } = r;
   const body = await request.json().catch(() => ({}));
   const now = new Date();
@@ -93,6 +96,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const r = await load(id);
   if ("error" in r) return r.error;
+  if (r.ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(r.ctx.workspaceId);
   const entryId = request.nextUrl.searchParams.get("entry_id") ?? "";
   const { data: entry } = await r.admin.from("task_time_entries").select("user_id").eq("id", entryId).eq("task_id", id).maybeSingle();
   if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });

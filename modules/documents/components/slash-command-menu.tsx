@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Type, Heading1, Heading2, Heading3, List, ListOrdered, CheckSquare,
   Quote, Code2, Image, Minus, MessageSquare,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import type { BlockType } from "../types";
 import { cn } from "@/lib/utils";
 

@@ -1,3 +1,4 @@
+import { dateLocale } from "@/lib/user-prefs";
 import type { TaskActivityEntry, TaskMember, TaskStatus, TaskPriority } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../types";
 
@@ -13,13 +14,13 @@ function describeUpdate(newValue: Record<string, unknown>, metadata?: Record<str
         parts.push(`changed the task status to ${(metadata?.column_name as string) ?? STATUS_CONFIG[value as TaskStatus]?.label ?? value}`);
         break;
       case "planned_date":
-        parts.push(value ? `scheduled the task for ${new Date(value as string).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "moved the task to the waiting list");
+        parts.push(value ? `scheduled the task for ${new Date(value as string).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })}` : "moved the task to the waiting list");
         break;
       case "type_id":
         parts.push(`changed the type${metadata?.type_name ? ` to ${metadata.type_name}` : ""}`);
         break;
       case "project_id":
-        parts.push("moved the task to another project");
+        parts.push("moved the task to another brand");
         break;
       case "color":
         parts.push("changed the colour");
@@ -28,7 +29,7 @@ function describeUpdate(newValue: Record<string, unknown>, metadata?: Record<str
         parts.push(`changed priority to ${PRIORITY_CONFIG[value as TaskPriority]?.label ?? value}`);
         break;
       case "due_date":
-        parts.push(value ? `set due date to ${new Date(value as string).toLocaleDateString()}` : "cleared the due date");
+        parts.push(value ? `set the deadline to ${new Date(value as string).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })}` : "removed the deadline");
         break;
       case "title":
         parts.push(`renamed the task to "${value}"`);
@@ -43,7 +44,7 @@ function describeUpdate(newValue: Record<string, unknown>, metadata?: Record<str
         parts.push(`logged ${value}h`);
         break;
       case "start_date":
-        parts.push(value ? `set start date to ${new Date(value as string).toLocaleDateString()}` : "cleared the start date");
+        parts.push(value ? `set start date to ${new Date(value as string).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })}` : "cleared the start date");
         break;
       case "story_points":
         parts.push(`set story points to ${value}`);
@@ -86,7 +87,9 @@ export function formatActivity(entry: TaskActivityEntry, profiles: Record<string
     }
     case "attachment_added": {
       const files = ((entry.metadata?.files ?? []) as string[]).join(", ");
-      return `${actor} attached ${files || "a file"}`;
+      const kind = entry.metadata?.kind as string | undefined;
+      if (kind === "main") return `${actor} submitted the main file ${files}`.trim();
+      return `${actor} added ${kind === "brief" ? "a brief file" : kind === "reference" ? "a reference" : "a file"}${files ? `: ${files}` : ""}`;
     }
     case "label_added":
       return `${actor} added the "${entry.new_value?.label_name ?? "label"}" label`;

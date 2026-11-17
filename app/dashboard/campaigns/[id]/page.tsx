@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, TrendingUp, DollarSign, Users, BarChart2, Calculator } from "lucide-react";
+import { ArrowLeft, TrendingUp, DollarSign, Users, BarChart2, Calculator } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMarketing } from "@/modules/marketing/hooks/use-marketing";
 import { CAMPAIGN_TYPE_CONFIG, STATUS_CONFIG } from "@/modules/marketing/types";

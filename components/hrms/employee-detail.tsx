@@ -7,7 +7,7 @@ import {
   ArrowLeft, Mail, Phone, MapPin, Calendar, Briefcase,
   Building2, Edit2, CheckCircle2, XCircle, AlertCircle,
   Clock, IndianRupee, FileText, User, Trash2, KeyRound, AlertTriangle,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

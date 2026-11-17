@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { TrendingDown, DollarSign, Radio, Trophy, BarChart2, Megaphone, Map, Scale } from "lucide-react";
+import type { LucideIcon } from "@/components/shared/fa-icons";
+import { TrendingDown, DollarSign, Radio, Trophy, BarChart2, Megaphone, Map, Scale } from "@/components/shared/fa-icons";
 
 export type ReportSlug =
   | "sales-pipeline" | "revenue" | "lead-source" | "team-performance"

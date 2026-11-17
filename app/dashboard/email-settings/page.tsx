@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Mail, Server, Shield, Pen, Plus, Trash2, CheckCircle2,
   Eye, EyeOff, ExternalLink, AlertCircle, Chrome
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";

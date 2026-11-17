@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { TrendingUp, Plus, Building2, Target, Users, Phone, Handshake } from "lucide-react";
+import { TrendingUp, Plus, Building2, Target, Users, Phone, Handshake } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { useTeams } from "@/modules/teams/hooks/use-teams";
 import { Leaderboard } from "@/modules/teams/components/leaderboard";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff, BarChart2, Clock, Search } from "lucide-react";
+import { Pin, PinOff, BarChart2, Clock, Search } from "@/components/shared/fa-icons";
 import { REPORT_CATALOG, CATEGORY_CONFIG, type ReportCategory, type ReportMeta } from "@/modules/reports/types";
 import { useReports } from "@/modules/reports/hooks/use-reports";
 import { cn } from "@/lib/utils";

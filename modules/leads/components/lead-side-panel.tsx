@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LEAD_STATUSES, LEAD_SOURCES, type Lead, type LeadStatus, type LeadSource } from "../types";
 import { calcScore } from "../types";
 import { ScorePill } from "@/components/shared/score-pill";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@/components/shared/fa-icons";
 
 interface LeadSidePanelProps {
   open: boolean;

@@ -2,7 +2,7 @@
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faAnglesUp, faAngleUp, faEquals, faAngleDown, faMinus,
+  faFlag,
   faEnvelope, faScrewdriverWrench, faPause, faSquareCheck,
 } from "@fortawesome/free-solid-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
@@ -10,11 +10,11 @@ import type { TaskPriority, TaskStatus } from "../types";
 import { cn } from "@/lib/utils";
 
 export const PRIORITY_META: Record<TaskPriority, { label: string; icon: IconDefinition; color: string }> = {
-  urgent: { label: "Urgent", icon: faAnglesUp, color: "text-red-500" },
-  high: { label: "High", icon: faAngleUp, color: "text-orange-500" },
-  medium: { label: "Medium", icon: faEquals, color: "text-amber-500" },
-  low: { label: "Low", icon: faAngleDown, color: "text-sky-500" },
-  none: { label: "None", icon: faMinus, color: "text-muted-foreground" },
+  urgent: { label: "Urgent", icon: faFlag, color: "text-red-500" },
+  high: { label: "High", icon: faFlag, color: "text-orange-500" },
+  medium: { label: "Medium", icon: faFlag, color: "text-amber-500" },
+  low: { label: "Low", icon: faFlag, color: "text-sky-500" },
+  none: { label: "No priority", icon: faFlag, color: "text-muted-foreground/40" },
 };
 
 export const STATUS_ICON: Record<TaskStatus, { icon: IconDefinition; color: string }> = {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Shield, UserRound, Loader2, MoreHorizontal, UserX, UserCheck,
   Puzzle, Trash2,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MODULES } from "@/lib/rbac/modules";
 import { Button } from "@/components/ui/button";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Edit2, Check, X } from "lucide-react";
+import { Edit2, Check, X } from "@/components/shared/fa-icons";
 import { Input } from "@/components/ui/input";
 import type { Target } from "../types";
 import { TARGET_CONFIG } from "../types";

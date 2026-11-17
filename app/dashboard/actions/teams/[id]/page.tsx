@@ -1,9 +1,13 @@
 "use client";
 
-import { use } from "react";
-import { TeamPlanner } from "@/modules/tasks/components/team-planner";
+import { Suspense, use } from "react";
+import { TeamView } from "@/modules/tasks/components/team-view";
 
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return <TeamPlanner teamId={id} />;
+  return (
+    <Suspense fallback={null}>
+      <TeamView key={id} teamId={id} />
+    </Suspense>
+  );
 }

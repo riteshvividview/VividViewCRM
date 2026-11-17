@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, ArrowLeft, Save } from "lucide-react";
+import { Plus, Trash2, ArrowLeft, Save } from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

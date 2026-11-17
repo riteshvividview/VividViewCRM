@@ -1,6 +1,6 @@
 "use client";
 
-import { Video, Link2 } from "lucide-react";
+import { Video, Link2 } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendarDays } from "@fortawesome/free-solid-svg-icons";
 import type { CalendarEvent } from "../types";

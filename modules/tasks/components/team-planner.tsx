@@ -1,19 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { dateLocale } from "@/lib/user-prefs";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Plus, Pen } from "@/components/shared/fa-icons";
+import { TeamDialog } from "./team-dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTasksContext } from "../context/tasks-context";
 import { TaskCard, TASK_DRAG_TYPE } from "./task-card";
 import { AssigneeAvatar } from "./assignee-picker";
 import type { Task } from "../types";
-import { addDays, formatMinutes, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
+import { addDays, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
 import { cn } from "@/lib/utils";
 
 /** Team calendar: members × days. Drag a task to another day or person to replan / reassign it. */
 export function TeamPlanner({ teamId }: { teamId?: string }) {
-  const { tasks, members, teams, updateTask, addAssignees, removeAssignee, openTask, openQuickAdd } = useTasksContext();
+  const { tasks, members, teams, refreshTeams, isLead, readOnly, updateTask, addAssignees, removeAssignee, openTask, openQuickAdd } = useTasksContext();
+  const router = useRouter();
+  const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
+  const canManage = isLead && !readOnly;
+  // The sidebar "+" opens this page with ?new=1.
+  useEffect(() => {
+    if (canManage && new URLSearchParams(window.location.search).get("new") === "1") {
+      setDialog("new");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [canManage]);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [team, setTeam] = useState<string>(teamId ?? "all");
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -30,6 +43,7 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
   const cell = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const t of tasks) {
+      if (team !== "all" && t.team_id !== team) continue;
       if (!t.planned_date || t.planned_date < from || t.planned_date > to) continue;
       for (const a of t.assignees) {
         const key = `${a.id}|${t.planned_date}`;
@@ -37,7 +51,7 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
       }
     }
     return map;
-  }, [tasks, from, to]);
+  }, [tasks, from, to, team]);
 
   async function onDrop(e: React.DragEvent, memberId: string, day: string) {
     e.preventDefault();
@@ -56,22 +70,30 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
   return (
     <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[520px]">
       <div className="flex flex-wrap items-center gap-2 pb-3">
-        <h1 className="text-lg font-semibold mr-2">Team</h1>
+        <h1 className="text-lg font-semibold mr-2">{teams.find((t) => t.id === team)?.name ?? "Teams"}</h1>
         <Button variant="outline" size="sm" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</Button>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addDays(w, -7))}><ChevronLeft className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setWeekStart((w) => addDays(w, 7))}><ChevronRight className="h-4 w-4" /></Button>
         <span className="text-sm font-medium">{formatWeekRange(weekStart)}</span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {canManage && team !== "all" && <Button variant="outline" size="sm" className="h-8" onClick={() => setDialog("edit")}><Pen className="mr-1.5 h-3.5 w-3.5" />Edit team</Button>}
+          {canManage && <Button size="sm" className="h-8" onClick={() => setDialog("new")}><Plus className="mr-1.5 h-3.5 w-3.5" />New team</Button>}
           <Select value={team} onValueChange={setTeam}>
             <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Everyone</SelectItem>
+              <SelectItem value="all">All teams</SelectItem>
               {teams.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
 
+      <TeamDialog
+        open={dialog !== null} team={dialog === "edit" ? teams.find((t) => t.id === team) ?? null : null} members={members}
+        onClose={() => setDialog(null)}
+        onSaved={(saved) => { setDialog(null); refreshTeams(); router.push(`/dashboard/actions/teams/${saved.id}`); }}
+        onDeleted={() => { setDialog(null); refreshTeams(); setTeam("all"); router.push("/dashboard/actions/teams"); }}
+      />
       <div className="flex-1 min-h-0 overflow-auto rounded-xl border bg-card">
         <div className="min-w-[1100px]">
           <div className="sticky top-0 z-10 grid border-b bg-card" style={{ gridTemplateColumns: "200px repeat(7, 1fr)" }}>
@@ -80,24 +102,23 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
               const iso = toISODate(d);
               return (
                 <div key={iso} className="border-l px-2 py-2 text-center">
-                  <span className="text-[11px] uppercase text-muted-foreground">{d.toLocaleDateString("en-IN", { weekday: "short" })} </span>
+                  <span className="text-[11px] uppercase text-muted-foreground">{d.toLocaleDateString(dateLocale(), { weekday: "short" })} </span>
                   <span className={cn("text-sm font-semibold", iso === today && "rounded-full bg-primary px-1.5 text-primary-foreground")}>{d.getDate()}</span>
                 </div>
               );
             })}
           </div>
 
-          {rows.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">No members in this team.</p>}
+          {rows.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">{team === "all" ? "Nobody here yet." : "No members in this team yet."}</p>}
           {rows.map((m) => {
             const weekTasks = days.flatMap((d) => cell.get(`${m.id}|${toISODate(d)}`) ?? []);
-            const load = weekTasks.filter((t) => t.status !== "done").reduce((s, t) => s + (t.estimated_hours ?? 0) * 60, 0);
             return (
               <div key={m.id} className="grid border-b last:border-0" style={{ gridTemplateColumns: "200px repeat(7, 1fr)" }}>
                 <div className="flex items-start gap-2 px-3 py-2.5">
                   <AssigneeAvatar member={m} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{m.full_name}</p>
-                    <p className="text-[11px] text-muted-foreground">{weekTasks.filter((t) => t.status !== "done").length} open · {formatMinutes(load)}</p>
+                    <p className="text-[11px] text-muted-foreground">{weekTasks.filter((t) => t.status !== "done").length} open this week</p>
                   </div>
                 </div>
                 {days.map((d) => {

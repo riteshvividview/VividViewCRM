@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext } from "../../_lib/helpers";
+import { canReadTask } from "../../_lib/teams";
 
 /** Returns the persisted activity log for a task, newest first, with actor + referenced-user profiles resolved. */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const admin = adminClient();
 
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!task || !(await canReadTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const { data: entries, error } = await admin
     .from("task_activity_log")

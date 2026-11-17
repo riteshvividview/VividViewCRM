@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   GraduationCap, Briefcase, Plus, Pencil, Trash2,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

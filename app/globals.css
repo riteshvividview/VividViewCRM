@@ -321,8 +321,8 @@ button, [role="button"], a, input[type="checkbox"], input[type="radio"] {
   min-height: 44px;
 }
 
-/* But don't force 44px on tiny icon buttons or badge-style elements */
-.h-6, .h-7, .h-8 {
+/* But don't force 44px on switches, tiny icon buttons or badge-style elements */
+.h-3, .h-4, .h-5, .h-6, .h-7, .h-8, [role="switch"] {
   min-height: unset;
 }
 
@@ -368,4 +368,12 @@ table {
 .rich-text p.is-editor-empty:first-child::before {
   content: attr(data-placeholder); float: left; height: 0; pointer-events: none;
   color: hsl(var(--muted-foreground)); opacity: 0.7;
+}
+
+/* Smooth colour change while the light / dark theme is being switched (class set for ~0.45s). */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, fill 0.4s ease, stroke 0.4s ease, box-shadow 0.4s ease !important;
 }

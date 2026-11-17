@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../_lib/helpers";
+import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
 import { ensureProjectBoard } from "../_lib/board";
 
 const PROJECT_SELECT = "id, name, description, status, color, icon, team_id, archived_at, owner_id, created_at, key";
@@ -39,10 +39,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
+
+  if (!isLead(ctx.role)) return NextResponse.json({ error: "Only the CEO and team leads can create brands" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
   const name = (body.name ?? "").trim();
-  if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  if (!name) return NextResponse.json({ error: "Brand name is required" }, { status: 400 });
 
   const admin = adminClient();
   const { data, error } = await admin

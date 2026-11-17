@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { X, ChevronRight, ChevronLeft, Check, Upload, Users, FileText, Calendar, Rocket, Sparkles } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, Check, Upload, Users, FileText, Calendar, Rocket, Sparkles } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEnvelope, faPenToSquare, faBolt, faCalendarDays, faArrowsRotate, faTriangleExclamation } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";

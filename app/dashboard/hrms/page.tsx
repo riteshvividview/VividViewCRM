@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Cake, PartyPopper, Plane, CalendarDays, Megaphone, UserPlus, Users, LogIn, LogOut,
   ArrowRight, Loader2, Receipt, LifeBuoy, CalendarPlus, Inbox,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { toast } from "sonner";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faThumbtack } from "@fortawesome/free-solid-svg-icons";

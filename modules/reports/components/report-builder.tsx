@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { GripVertical, Plus, X, BarChart2, Table, PieChart, TrendingUp, LayoutGrid, Hash, ClipboardList, Handshake, Users, Phone, Megaphone } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { GripVertical, Plus, X, BarChart2, Table, PieChart, TrendingUp, LayoutGrid, Hash, ClipboardList, Handshake, Users, Phone, Megaphone } from "@/components/shared/fa-icons";
+import type { LucideIcon } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
 import { ChartType, DataSource, BuilderField, BuilderState } from "../types";
 import { cn } from "@/lib/utils";

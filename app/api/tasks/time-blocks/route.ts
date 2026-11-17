@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext } from "../_lib/helpers";
+import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
+import { canAccessTask, visibleTaskIds } from "../_lib/teams";
 
 const SELECT = "id, task_id, user_id, start_at, end_at, task:tasks(id, title, status, color, priority, project:task_projects!project_id(id, name, color))";
 
@@ -24,20 +25,23 @@ export async function GET(request: NextRequest) {
   else if (sp.get("user_id") !== "all") q = q.eq("user_id", sp.get("user_id") || ctx.userId);
   const { data, error } = await q.order("start_at").limit(1000);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ blocks: data ?? [] });
+  const allowed = await visibleTaskIds(adminClient(), ctx, (data ?? []).map((b) => b.task_id));
+  return NextResponse.json({ blocks: (data ?? []).filter((b) => allowed.has(b.task_id)) });
 }
 
 /** POST { task_id, start_at, end_at, user_id? } */
 export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   const body = await request.json().catch(() => ({}));
   const err = validRange(body.start_at, body.end_at);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
   const admin = adminClient();
   const { data: task } = await admin.from("tasks").select("id").eq("id", body.task_id ?? "").eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!task || !(await canAccessTask(admin, ctx, task.id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   let userId = ctx.userId;
   if (body.user_id && body.user_id !== ctx.userId) {
@@ -58,6 +62,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   const body = await request.json().catch(() => ({}));
   const err = validRange(body.start_at, body.end_at);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
@@ -73,6 +79,8 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   const id = request.nextUrl.searchParams.get("id") ?? "";
   const { error } = await adminClient().from("task_time_blocks").delete().eq("id", id).eq("workspace_id", ctx.workspaceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

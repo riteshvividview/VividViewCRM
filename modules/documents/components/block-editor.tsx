@@ -6,7 +6,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Lightbulb } from "lucide-react";
+import { GripVertical, Plus, Lightbulb } from "@/components/shared/fa-icons";
 import type { Block, BlockType } from "../types";
 import { SlashCommandMenu, SLASH_COMMANDS } from "./slash-command-menu";
 import { cn } from "@/lib/utils";

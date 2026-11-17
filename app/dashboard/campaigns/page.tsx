@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, Plus, TrendingUp, DollarSign, Users, BarChart2 } from "lucide-react";
+import { Search, Plus, TrendingUp, DollarSign, Users, BarChart2 } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

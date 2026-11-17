@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { adminClient, getAuthContext, isHR } from "../_lib/helpers";
+import { adminClient, getAuthContext, isHR, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
 
 const SELECT = "id, name, color, position";
 
@@ -35,6 +35,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   if (!isHR(ctx.role) && ctx.role !== "team_lead") return NextResponse.json({ error: "Only admins and team leads can manage task types" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const name = (body.name ?? "").trim();
@@ -52,6 +54,8 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   if (!isHR(ctx.role) && ctx.role !== "team_lead") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const update: Record<string, unknown> = {};
@@ -68,6 +72,8 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (ctx.readOnly) return readOnlyResponse();
+  syncWorkspace(ctx.workspaceId);
   if (!isHR(ctx.role) && ctx.role !== "team_lead") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { error } = await adminClient().from("task_types").delete()
     .eq("id", request.nextUrl.searchParams.get("id") ?? "").eq("workspace_id", ctx.workspaceId);

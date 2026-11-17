@@ -39,3 +39,9 @@ next-env.d.ts
 # build artifacts
 *.tsbuildinfo
 /backend/dist
+DEMO-LOGINS.local.md
+
+# local-only: database migrations run by hand in Supabase, editor settings
+RUN-ME-*.sql
+/*.sql
+.claude/

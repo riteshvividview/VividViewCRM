@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Building2, Users, Plus, Pencil, Trash2, ChevronRight,
   MoreHorizontal, UserRound,
-} from "lucide-react";
+} from "@/components/shared/fa-icons";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
