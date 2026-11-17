@@ -263,6 +263,7 @@ export const MODULES: Module[] = [
       { id: "task-all",       href: "/dashboard/actions/tasks",    icon: "CircleCheck",   label: "Tasks" },
       { id: "task-team",      href: "/dashboard/actions/teams",    icon: "Users",         label: "Team" },
       { id: "task-projects",  href: "/dashboard/actions/brands",   icon: "Tag",           label: "Brands" },
+      { id: "task-storage",   href: "/dashboard/actions/storage",  icon: "HardDrive",     label: "Storage",  roles: ["super_admin"] },
       { id: "task-settings",  href: "/dashboard/actions/settings", icon: "Settings",      label: "Settings", roles: ["super_admin"] },
     ]},
   },

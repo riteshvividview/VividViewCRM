@@ -13,6 +13,8 @@ async function me() {
   if (!user) return null;
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") return null;
+  const { data: profile } = await supabase.from("profiles").select("disabled").eq("user_id", user.id).maybeSingle();
+  if (profile?.disabled) return null;
   return { supabase, user };
 }
 

@@ -156,6 +156,7 @@ export const Inbox = fa(s.faInbox);
 export const Pin = fa(s.faThumbtack);
 export const PinOff = fa(s.faThumbtack);
 export const FolderKanban = fa(s.faFolderOpen);
+export const HardDrive = fa(s.faHardDrive);
 export const Tag = fa(s.faTag);
 export const Eye = fa(r.faEye);
 export const EyeOff = fa(r.faEyeSlash);

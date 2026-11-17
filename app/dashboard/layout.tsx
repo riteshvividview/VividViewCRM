@@ -26,9 +26,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  if (!user) redirect("/auth/login");
+  // A saved session that no longer works (expired, or the account was switched off)
+  // has to be cleared first, or sign-in would send the browser straight back here.
+  if (!user) redirect(userError && /banned/i.test(userError.message) ? "/auth/inactive" : "/auth/inactive?expired=1");
 
   // Accounts with an authenticator app must pass the second step before anything opens.
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
@@ -55,6 +57,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ]);
 
   let profile = profileResult.data;
+  // Switched off by the CEO: sign out and say why.
+  if (profile?.disabled) redirect("/auth/inactive");
 
   // Auto-create profile if missing
   if (!profile) {

@@ -102,6 +102,18 @@ export function formatActivity(entry: TaskActivityEntry, profiles: Record<string
       const n = Number(entry.metadata?.count ?? 0);
       return `${actor} moved ${n} file${n === 1 ? "" : "s"} to the new brand / team folder`;
     }
+    // Changes the CEO made in Storage.
+    case "storage_removed": {
+      const files = (entry.metadata?.files ?? []) as string[];
+      const n = Number(entry.metadata?.count ?? files.length);
+      return `${actor} deleted ${n === 1 ? files[0] ?? "a file" : `${n} files`} from storage`;
+    }
+    case "storage_renamed":
+      return `${actor} renamed a file to ${String(entry.metadata?.to ?? "a new name")}`;
+    case "storage_moved": {
+      const n = Number(entry.metadata?.count ?? 1);
+      return `${actor} moved ${n === 1 ? "a file" : `${n} files`} to ${String(entry.metadata?.to ?? "another folder")} in storage`;
+    }
     case "label_added":
       return `${actor} added the "${entry.new_value?.label_name ?? "label"}" label`;
     case "label_removed":

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, AlertTriangle } from "@/components/shared/fa-icons";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,9 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const inFlightRef = useRef(false);
+  // Sent here after the CEO switched this account off.
+  const [inactive, setInactive] = useState(false);
+  useEffect(() => { setInactive(new URLSearchParams(window.location.search).get("inactive") === "1"); }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +38,7 @@ export default function LoginPage() {
         if (error.status === 429) {
           toast.error("Too many login attempts. Please wait a few minutes before trying again.");
         } else {
-          toast.error(error.message);
+          toast.error(/banned/i.test(error.message) ? "This account has been deactivated. Ask your CEO to switch it back on." : error.message);
         }
         return;
       }
@@ -64,6 +67,12 @@ export default function LoginPage() {
           </div>
         )}
 
+        {inactive && (
+          <div role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Your account has been deactivated, so you were signed out. Ask your CEO to switch it back on.</span>
+          </div>
+        )}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>

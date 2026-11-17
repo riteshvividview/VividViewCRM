@@ -38,6 +38,8 @@ Everyone also has **My Profile** and personal **Settings** (appearance, notifica
 | Submit the main file and complete a task | Yes | Yes | Assignees and the creator | Full access only |
 | Create and edit brands | Yes | Yes | No | No |
 | Create and edit teams (people in each team) | Yes | Yes | No | No |
+| Storage: browse, search, filter, preview, download, rename, move and delete every file in Cloudflare | Yes | No | No | No |
+| Task settings and User Management | Yes | No | No | No |
 | See tasks of a team | Team members, leads, creator and assignees | | | |
 | Manage task types | Yes | Yes | No | No |
 | Delete a task | Yes | Yes | Own tasks, unless the CEO sets "Leads only" | No |

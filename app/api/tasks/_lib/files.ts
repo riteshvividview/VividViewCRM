@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, HeadObjectCommand, CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, HeadObjectCommand, CopyObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -40,7 +40,7 @@ function r2(): S3Client {
   return client;
 }
 
-const clean = (s: string, max = 60) => s.normalize("NFKD").replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, " ").slice(0, max) || "untitled";
+export const clean = (s: string, max = 60) => s.normalize("NFKD").replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, " ").slice(0, max) || "untitled";
 
 interface PathTask { id: string; title: string; number: number | null; created_at: string; project?: { name: string; key?: string | null } | null; team?: { name: string } | null }
 
@@ -217,4 +217,53 @@ export async function purgeExpiredFiles(admin: SupabaseClient, workspaceId: stri
   await removeFiles(admin, expired as StoredFile[]);
   await admin.from("task_attachments").update({ purged_at: new Date().toISOString(), file_path: null }).in("id", expired.map((r) => r.id));
   return expired.length;
+}
+
+// ── Storage browser (CEO) ─────────────────────────────────────────────────
+
+export interface R2Object { key: string; size: number; modified: string }
+
+/** Every object under a prefix, up to `cap`. `truncated` is true when there were more. */
+export async function listR2(prefix: string, cap = 20000): Promise<{ objects: R2Object[]; truncated: boolean }> {
+  const objects: R2Object[] = [];
+  let token: string | undefined;
+  do {
+    const page = await r2().send(new ListObjectsV2Command({ Bucket: env().bucket, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }));
+    for (const o of page.Contents ?? []) {
+      if (!o.Key || o.Key.endsWith("/")) continue;
+      objects.push({ key: o.Key, size: o.Size ?? 0, modified: (o.LastModified ?? new Date()).toISOString() });
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token && objects.length < cap);
+  return { objects: objects.slice(0, cap), truncated: !!token || objects.length > cap };
+}
+
+export async function r2Exists(key: string): Promise<boolean> {
+  return (await r2ObjectSize(key)) !== null;
+}
+
+/** Copies then deletes: R2 has no rename. */
+export async function moveR2(from: string, to: string): Promise<void> {
+  const bucket = env().bucket!;
+  await r2().send(new CopyObjectCommand({ Bucket: bucket, Key: to, CopySource: `${bucket}/${from.split("/").map(encodeURIComponent).join("/")}` }));
+  await r2().send(new DeleteObjectCommand({ Bucket: bucket, Key: from }));
+}
+
+/** Deletes keys in batches of 1000. Returns the keys R2 reported as not deleted. */
+export async function deleteR2(keys: string[]): Promise<string[]> {
+  const failed: string[] = [];
+  for (let i = 0; i < keys.length; i += 1000) {
+    const res = await r2().send(new DeleteObjectsCommand({ Bucket: env().bucket, Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true } }));
+    for (const e of res.Errors ?? []) if (e.Key) failed.push(e.Key);
+  }
+  return failed;
+}
+
+/** 10-minute link to view (inline) or download (under `name`) one object. */
+export async function presignR2(key: string, download?: string): Promise<string> {
+  const name = download?.replace(/["\\\r\n]/g, "_");
+  return getSignedUrl(r2(), new GetObjectCommand({
+    Bucket: env().bucket, Key: key,
+    ResponseContentDisposition: name ? `attachment; filename="${name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}` : undefined,
+  }), { expiresIn: 600 });
 }

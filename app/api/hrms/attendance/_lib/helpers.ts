@@ -42,10 +42,10 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const admin = adminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("role, workspace_id")
+    .select("role, workspace_id, disabled")
     .eq("user_id", user.id)
     .single();
-  if (!profile?.workspace_id) return null;
+  if (!profile?.workspace_id || profile.disabled) return null;
 
   const { data: employee } = await admin
     .from("hr_employees")

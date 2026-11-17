@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faTableList, faTableColumns } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,10 @@ const COLUMNS: KanbanColumn[] = (Object.keys(STATUS_CONFIG) as TaskStatus[]).map
 /** My work across all brands — table / kanban with filters. */
 export default function AllTasksPage() {
   const { tasks, members, types, projects, currentUserId, openQuickAdd, openTask, updateTask } = useTasksContext();
-  const [view, setView] = useState<"table" | "kanban">("kanban");
+  // Remembers Table or Kanban on this browser.
+  const [view, setViewState] = useState<"table" | "kanban">("kanban");
+  useEffect(() => { try { if (localStorage.getItem("vividview-tasks-view") === "table") setViewState("table"); } catch {} }, []);
+  const setView = (v: "table" | "kanban") => { setViewState(v); try { localStorage.setItem("vividview-tasks-view", v); } catch {} };
   const [mineOnly, setMineOnly] = useState(true);
   const [filters, setFilters] = useState<TaskFilterState>(EMPTY_FILTERS);
 
