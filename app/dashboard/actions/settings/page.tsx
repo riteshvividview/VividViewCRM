@@ -14,12 +14,13 @@ import { useShellProfile } from "@/lib/supabase/profile-context";
 import { FILE_SECTIONS } from "@/modules/tasks/components/task-files";
 import { formatFileSize } from "@/modules/tasks/lib/upload";
 import { cn } from "@/lib/utils";
+import { StorageUsage, type StorageSummary } from "@/modules/tasks/components/storage-usage";
 
 type HrAccess = "full" | "view" | "hidden";
 type DeleteRule = "creator" | "leads";
 interface Settings { retention_enabled: boolean; retention_days: number; last_cleanup_at: string | null; hr_access: HrAccess; delete_rule: DeleteRule; notif_read_days: number; notif_unread_days: number; trash_days: number }
 interface Amount { files: number; bytes: number }
-interface Payload { settings: Settings; storage: Record<string, Amount>; removed: number; cleanup: { due: Amount; all: Amount }; cloudflare: boolean }
+interface Payload { settings: Settings; storage: Record<string, Amount>; removed: number; cleanup: { due: Amount; all: Amount }; cloudflare: boolean; summary: StorageSummary | null }
 
 const DAY_PRESETS = [15, 30, 60, 90, 180];
 const amount = (a: Amount) => (a.files ? `${a.files} file${a.files === 1 ? "" : "s"} · ${formatFileSize(a.bytes) || "0 B"}` : "nothing");
@@ -165,7 +166,14 @@ export default function TaskSettingsPage() {
         </div>
       </Card>
 
-      <Card icon={faDatabase} title="Storage in use" hint="What the task files take up right now.">
+      <Card icon={faDatabase} title="Storage in use" hint="Read from Cloudflare, so it matches the Storage page exactly.">
+        {data.summary ? (
+          <>
+            <StorageUsage data={data.summary} onChanged={load} />
+            <Link href="/dashboard/actions/storage" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">Open Storage</Link>
+          </>
+        ) : (
+        <>
         <div className="grid gap-3 sm:grid-cols-4">
           {(["brief", "main", "reference"] as const).map((k) => (
             <div key={k} className="rounded-xl border p-3.5">
@@ -185,6 +193,8 @@ export default function TaskSettingsPage() {
           {data.cloudflare ? "New files are stored in Cloudflare R2." : "Cloudflare R2 is not connected yet, so files are stored in Supabase (25 MB per file)."}
           {data.removed > 0 && ` ${data.removed} file${data.removed === 1 ? " has" : "s have"} been removed by cleanup so far.`}
         </p>
+        </>
+        )}
       </Card>
 
       <Card icon={faBell} title="Notification cleanup" hint="Old notifications are removed from everyone's bell automatically. Tasks, chat and activity are not affected.">

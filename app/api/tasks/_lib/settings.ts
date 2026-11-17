@@ -17,6 +17,8 @@ export interface TaskSettings {
   notif_unread_days: number;
   /** Days a deleted task stays in the trash before it is removed for good. */
   trash_days: number;
+  /** Storage allowance shown as "X of Y used" (Cloudflare R2 free tier: 10 GB). */
+  storage_limit_gb: number;
 }
 
 export const DEFAULT_TASK_SETTINGS: TaskSettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_TASK_SETTINGS: TaskSettings = {
   notif_read_days: 30,
   notif_unread_days: 90,
   trash_days: 15,
+  storage_limit_gb: 10,
 };
 
 // "*" rather than a column list, so settings still load before newer columns exist (migration 47).

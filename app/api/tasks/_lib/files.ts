@@ -182,13 +182,25 @@ export async function removeFiles(admin: SupabaseClient, files: StoredFile[]): P
   }
 }
 
+let keepCol: boolean | null = null, keepCheckedAt = 0;
+/** Whether task_attachments.keep exists (migration 50); cached per server for a minute. */
+export async function keepReady(admin: SupabaseClient): Promise<boolean> {
+  if (keepCol === true) return true;
+  if (keepCol === false && Date.now() - keepCheckedAt < 60_000) return false;
+  const { error } = await admin.from("task_attachments").select("keep").limit(1);
+  keepCol = !error; keepCheckedAt = Date.now();
+  return keepCol;
+}
+
 /** Reference files and chat media of tasks completed at least `days` ago that have a main file. */
 async function purgeable(admin: SupabaseClient, workspaceId: string, days: number) {
   const cutoff = new Date(Date.now() - days * 86400_000).toISOString();
-  const { data: rows } = await admin.from("task_attachments")
+  let q = admin.from("task_attachments")
     .select("id, task_id, file_path, storage, size_bytes, task:tasks!inner(status, completed_at)")
     .eq("workspace_id", workspaceId).in("kind", ["reference", "chat"]).is("purged_at", null).not("file_path", "is", null)
-    .eq("task.status", "done").lte("task.completed_at", cutoff).limit(1000);
+    .eq("task.status", "done").lte("task.completed_at", cutoff);
+  if (await keepReady(admin)) q = q.eq("keep", false);
+  const { data: rows } = await q.limit(1000);
   if (!rows?.length) return [];
 
   const taskIds = [...new Set(rows.map((r) => r.task_id))];
@@ -224,13 +236,13 @@ export async function purgeExpiredFiles(admin: SupabaseClient, workspaceId: stri
 export interface R2Object { key: string; size: number; modified: string }
 
 /** Every object under a prefix, up to `cap`. `truncated` is true when there were more. */
-export async function listR2(prefix: string, cap = 20000): Promise<{ objects: R2Object[]; truncated: boolean }> {
+export async function listR2(prefix: string, cap = 20000, opts: { markers?: boolean } = {}): Promise<{ objects: R2Object[]; truncated: boolean }> {
   const objects: R2Object[] = [];
   let token: string | undefined;
   do {
     const page = await r2().send(new ListObjectsV2Command({ Bucket: env().bucket, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }));
     for (const o of page.Contents ?? []) {
-      if (!o.Key || o.Key.endsWith("/")) continue;
+      if (!o.Key || (o.Key.endsWith("/") && !opts.markers)) continue;
       objects.push({ key: o.Key, size: o.Size ?? 0, modified: (o.LastModified ?? new Date()).toISOString() });
     }
     token = page.IsTruncated ? page.NextContinuationToken : undefined;
@@ -240,6 +252,16 @@ export async function listR2(prefix: string, cap = 20000): Promise<{ objects: R2
 
 export async function r2Exists(key: string): Promise<boolean> {
   return (await r2ObjectSize(key)) !== null;
+}
+
+/** An empty "folder/" marker, so a new folder shows before anything is in it. */
+export async function putFolderMarker(key: string): Promise<void> {
+  await r2().send(new PutObjectCommand({ Bucket: env().bucket, Key: key.endsWith("/") ? key : `${key}/`, Body: "", ContentType: "application/x-directory" }));
+}
+
+/** Short-lived URL for uploading straight from the browser into any key (Storage page uploads). */
+export async function presignPut(key: string, contentType: string): Promise<string> {
+  return getSignedUrl(r2(), new PutObjectCommand({ Bucket: env().bucket, Key: key, ContentType: contentType }), { expiresIn: 900 });
 }
 
 /** Copies then deletes: R2 has no rename. */

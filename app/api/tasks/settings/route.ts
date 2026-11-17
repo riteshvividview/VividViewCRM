@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, syncWorkspace } from "../_lib/helpers";
 import { getTaskSettings, purgeOldNotifications, saveTaskSettings, type TaskSettings } from "../_lib/settings";
 import { purgeExpiredTrash } from "../_lib/trash";
+import { storageSummary } from "../_lib/storage-stats";
 import { countPurgeable, purgeExpiredFiles, r2Enabled } from "../_lib/files";
 
 const isCeo = (role: string) => role === "super_admin";
@@ -36,6 +37,8 @@ export async function GET() {
   return NextResponse.json({
     read_only: false, delete_rule: settings.delete_rule, settings, storage, removed,
     cleanup: { due, all }, cloudflare: r2Enabled(),
+    // The same Cloudflare-based numbers the Storage page shows.
+    summary: r2Enabled() ? await storageSummary(admin, ctx.workspaceId).catch(() => null) : null,
   });
 }
 
@@ -55,6 +58,11 @@ export async function PATCH(request: NextRequest) {
   }
   if (["full", "view", "hidden"].includes(body.hr_access)) patch.hr_access = body.hr_access;
   if (["creator", "leads"].includes(body.delete_rule)) patch.delete_rule = body.delete_rule;
+  if (body.storage_limit_gb !== undefined) {
+    const gb = Number(body.storage_limit_gb);
+    if (!Number.isFinite(gb) || gb <= 0 || gb > 100000) return NextResponse.json({ error: "Enter a storage size between 1 and 100000 GB" }, { status: 400 });
+    patch.storage_limit_gb = Math.round(gb * 100) / 100;
+  }
   if (body.trash_days !== undefined) {
     const days = Math.round(Number(body.trash_days));
     if (!Number.isFinite(days) || days < 1 || days > 365) return NextResponse.json({ error: "Keep deleted tasks between 1 and 365 days" }, { status: 400 });
@@ -71,6 +79,7 @@ export async function PATCH(request: NextRequest) {
   const { data, error } = await saveTaskSettings(adminClient(), ctx.workspaceId, ctx.userId, patch);
   if (error) {
     const missing = /task_settings/.test(error.message) && /(does not exist|schema cache)/.test(error.message);
+    if (/storage_limit_gb/.test(error.message)) return NextResponse.json({ error: "Storage settings are not set up in the database yet. Run RUN-ME-50-storage-manager.sql in Supabase first." }, { status: 400 });
     if (/trash_days/.test(error.message)) return NextResponse.json({ error: "The trash is not set up in the database yet. Run RUN-ME-49-task-trash.sql in Supabase first." }, { status: 400 });
     const notifColumns = /notif_(read|unread)_days/.test(error.message);
     return NextResponse.json({ error: notifColumns ? "Notification cleanup is not set up in the database yet. Run RUN-ME-47-notification-cleanup.sql in Supabase first." : missing ? "Settings table is missing. Run RUN-ME-43-task-settings.sql in Supabase first." : error.message }, { status: 400 });

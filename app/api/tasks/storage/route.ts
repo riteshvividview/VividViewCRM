@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { adminClient, getAuthContext, syncWorkspace, type AuthContext } from "../_lib/helpers";
-import { clean, deleteR2, listR2, moveR2, presignR2, r2Enabled, r2Exists, type R2Object } from "../_lib/files";
+import { clean, deleteR2, keepReady, listR2, moveR2, presignPut, presignR2, putFolderMarker, r2Enabled, r2Exists, type R2Object } from "../_lib/files";
+import { UNATTACHED_GRACE_MS, cleanupPlan, storageSummary } from "../_lib/storage-stats";
 
 /**
  * Cloudflare R2 browser for the CEO. Paths in and out are relative to the
@@ -99,16 +100,31 @@ export async function GET(request: NextRequest) {
   if (prefix === null) return err("Invalid folder");
   const root = `${ctx.workspaceId}/`;
 
+  // Usage, breakdown and clean-up schedule (shared with Task settings).
+  if (sp.get("summary") === "1") {
+    try { return NextResponse.json(await storageSummary(admin, ctx.workspaceId)); }
+    catch (e) { return err(`Could not read Cloudflare: ${e instanceof Error ? e.message : "unknown error"}`, 502); }
+  }
+
   let listing: { objects: R2Object[]; truncated: boolean };
+  let markers: R2Object[] = [];
   try {
-    listing = await listR2(root + prefix, MAX_LISTED);
+    const all = await listR2(root + prefix, MAX_LISTED, { markers: true });
+    markers = all.objects.filter((o) => o.key.endsWith("/"));
+    listing = { objects: all.objects.filter((o) => !o.key.endsWith("/")), truncated: all.truncated };
   } catch (e) {
     return err(`Could not read Cloudflare: ${e instanceof Error ? e.message : "unknown error"}`, 502);
   }
 
+  // Every file below a folder, for "Download as zip" (paths and sizes only).
+  if (sp.get("flat") === "1") {
+    const files = listing.objects.slice(0, 2000).map((o) => ({ path: o.key.slice(root.length), size: o.size }));
+    return NextResponse.json({ files, truncated: listing.objects.length > 2000 || listing.truncated });
+  }
+
   // Every folder path below the workspace (for "Move to"), only when asked.
   if (sp.get("folders") === "1") {
-    const all = await listR2(root, MAX_LISTED).catch(() => ({ objects: [] as R2Object[], truncated: false }));
+    const all = await listR2(root, MAX_LISTED, { markers: true }).catch(() => ({ objects: [] as R2Object[], truncated: false }));
     const set = new Set<string>();
     for (const o of all.objects) {
       const parts = o.key.slice(root.length).split("/").slice(0, -1);
@@ -126,7 +142,8 @@ export async function GET(request: NextRequest) {
   const minSize = Number(sp.get("min_size") ?? 0) || 0;
   const month = /^\d{4}-\d{2}$/.test(sp.get("month") ?? "") ? sp.get("month")! : "";
   const sort = sp.get("sort") ?? "name";
-  const searching = !!(q || type || section || linkedFilter || from || to || minSize || month);
+  const cleanupFilter = sp.get("cleanup") ?? "";
+  const searching = !!(q || type || section || linkedFilter || from || to || minSize || month || cleanupFilter);
 
   const rel = (key: string) => key.slice(root.length);
   const totalBytes = listing.objects.reduce((s, o) => s + o.size, 0);
@@ -143,6 +160,12 @@ export async function GET(request: NextRequest) {
     f.files++; f.bytes += o.size; if (o.modified > f.modified) f.modified = o.modified;
     folders.set(name, f);
   }
+  // Empty folders (created here, nothing uploaded yet) still show.
+  for (const m of markers) {
+    const rest = rel(m.key).slice(prefix.length);
+    const name = rest.split("/")[0];
+    if (name && !folders.has(name)) folders.set(name, { name, path: `${prefix}${name}/`, files: 0, bytes: 0, modified: m.modified });
+  }
 
   // Files to show: this folder's own, or everything below when searching/filtering.
   let candidates = searching ? listing.objects : here;
@@ -158,6 +181,16 @@ export async function GET(request: NextRequest) {
     if (month && !path.split("/").includes(month)) return false;
     return true;
   });
+
+  // When each reference / chat file will be cleaned up (and which are kept).
+  const plan = await cleanupPlan(admin, ctx.workspaceId);
+  const planByKey = new Map(plan.items.map((i) => [i.key, i]));
+  if (cleanupFilter === "scheduled") candidates = candidates.filter((o) => !!planByKey.get(o.key)?.deletes_on);
+  if (cleanupFilter === "kept") candidates = candidates.filter((o) => !!planByKey.get(o.key)?.keep);
+  if (cleanupFilter === "unattached") {
+    const known = await attachmentsFor(admin, ctx.workspaceId, candidates.map((o) => o.key));
+    candidates = candidates.filter((o) => !known.has(o.key));
+  }
 
   // Linked / not linked needs the task records, so look them up for all candidates (in chunks).
   let links = new Map<string, Linked>();
@@ -197,6 +230,8 @@ export async function GET(request: NextRequest) {
       path, name, size: o.size, modified: o.modified, type: typeOf(name),
       folder: path.split("/").slice(0, -1).join("/"),
       section: SECTION_OF[path.split("/").slice(-2, -1)[0] ?? ""] ?? null,
+      cleanup: planByKey.has(o.key) ? { deletes_on: planByKey.get(o.key)!.deletes_on, keep: planByKey.get(o.key)!.keep } : null,
+      created_at: a?.created_at ?? null,
       linked: a ? {
         attachment_id: a.id, kind: a.kind, mime_type: a.mime_type,
         uploaded_by: a.uploaded_by ? nameById.get(a.uploaded_by) ?? null : null,
@@ -226,7 +261,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     prefix, searching,
     folder: { files: listing.objects.length, bytes: totalBytes, truncated: listing.truncated },
-    matched, shown: files.length,
+    matched, shown: files.length, keep_available: plan.keep_available,
     folders: folderList, files,
     brands: prefix ? [] : [...brands].sort(), months: [...months].sort().reverse(),
   });
@@ -239,6 +274,63 @@ export async function POST(request: NextRequest) {
   const { ctx, admin } = r;
   const root = `${ctx.workspaceId}/`;
   const body = await request.json().catch(() => ({}));
+
+  if (body.action === "keep") {
+    const path = filePath(body.path);
+    if (!path) return err("Invalid file");
+    if (!(await keepReady(admin))) return err("Run RUN-ME-50-storage-manager.sql in Supabase first to keep files from clean-up.", 503);
+    const { data, error } = await admin.from("task_attachments").update({ keep: !!body.keep })
+      .eq("workspace_id", ctx.workspaceId).eq("storage", "r2").eq("file_path", root + path).in("kind", ["reference", "chat"]).select("id");
+    if (error) return err(error.message);
+    if (!data?.length) return err("Only reference files and chat media are cleaned up, so only they can be kept", 400);
+    return NextResponse.json({ ok: true, keep: !!body.keep });
+  }
+
+  if (body.action === "clean_unattached") {
+    const [{ objects }, { data: known }] = await Promise.all([
+      listR2(root, 50000),
+      admin.from("task_attachments").select("file_path").eq("workspace_id", ctx.workspaceId).eq("storage", "r2").not("file_path", "is", null).limit(50000),
+    ]);
+    const set = new Set((known ?? []).map((k) => k.file_path as string));
+    // Not right after upload: a task file may still be finishing.
+    const cutoff = new Date(Date.now() - UNATTACHED_GRACE_MS).toISOString();
+    const keys = objects.filter((o) => !set.has(o.key) && o.modified < cutoff).map((o) => o.key);
+    if (!keys.length) return NextResponse.json({ ok: true, deleted: 0, bytes: 0 });
+    const failed = new Set(await deleteR2(keys));
+    const bytes = objects.filter((o) => keys.includes(o.key) && !failed.has(o.key)).reduce((sum, o) => sum + o.size, 0);
+    return NextResponse.json({ ok: true, deleted: keys.length - failed.size, failed: failed.size, bytes });
+  }
+
+  if (body.action === "upload_url") {
+    const folder = folderPath(body.folder);
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (folder === null) return err("Invalid folder");
+    if (!name || /[/\\]/.test(name)) return err("Invalid file name");
+    const size = Number(body.size) || 0;
+    if (size > 5 * 1024 ** 3) return err("Files up to 5 GB can be uploaded here");
+    const path = `${folder}${crypto.randomUUID().slice(0, 8)}-${clean(name, 120)}`;
+    const type = typeof body.type === "string" && body.type ? body.type : "application/octet-stream";
+    return NextResponse.json({ path, url: await presignPut(root + path, type), type });
+  }
+
+  if (body.action === "new_folder") {
+    const parent = folderPath(body.parent);
+    const raw = typeof body.name === "string" ? body.name.trim() : "";
+    if (parent === null) return err("Invalid folder");
+    if (!raw || /[/\\]/.test(raw)) return err("Enter a name without slashes");
+    const target = `${parent}${clean(raw, 80)}/`;
+    const { objects } = await listR2(root + target, 1, { markers: true });
+    if (objects.length) return err("A folder with this name already exists here", 409);
+    await putFolderMarker(root + target);
+    return NextResponse.json({ ok: true, path: target });
+  }
+
+  if (body.action === "urls") {
+    const paths = (Array.isArray(body.paths) ? body.paths : []).map(filePath).filter(Boolean).slice(0, 2000) as string[];
+    if (!paths.length) return err("Nothing to download");
+    const urls = await Promise.all(paths.map(async (path) => ({ path, url: await presignR2(root + path) })));
+    return NextResponse.json({ urls });
+  }
 
   if (body.action === "url") {
     const path = filePath(body.path);
@@ -313,7 +405,7 @@ export async function POST(request: NextRequest) {
     if (!files.length && !folders.length) return err("Nothing selected");
     const keys = new Set<string>((files as string[]).map((f) => root + f));
     for (const f of folders as string[]) {
-      const { objects, truncated } = await listR2(root + f, MAX_CHANGED + 1);
+      const { objects, truncated } = await listR2(root + f, MAX_CHANGED + 1, { markers: true });
       if (truncated || objects.length > MAX_CHANGED) return err(`A folder holds more than ${MAX_CHANGED} files. Delete its subfolders one at a time.`);
       objects.forEach((o) => keys.add(o.key));
     }
@@ -342,7 +434,7 @@ async function relocate(
 ) {
   const keys: string[] = files.map((f) => root + f);
   for (const f of folders) {
-    const { objects, truncated } = await listR2(root + f, MAX_CHANGED + 1);
+    const { objects, truncated } = await listR2(root + f, MAX_CHANGED + 1, { markers: true });
     if (truncated || objects.length > MAX_CHANGED) return err(`A folder holds more than ${MAX_CHANGED} files. Move its subfolders one at a time.`);
     if (!objects.length) return err("This folder is empty or no longer exists", 404);
     keys.push(...objects.map((o) => o.key));
