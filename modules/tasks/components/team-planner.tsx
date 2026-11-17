@@ -42,7 +42,7 @@ function TaskChip({ task, memberId, onOpen }: { task: Task; memberId: string; on
 
 /** Team calendar: members of one team × days. Drag a task to another day or person to replan / reassign it. */
 export function TeamPlanner({ teamId }: { teamId?: string }) {
-  const { tasks, members, teams, refreshTeams, isLead, readOnly, currentUserId, updateTask, addAssignees, removeAssignee, openTask, openQuickAdd } = useTasksContext();
+  const { tasks, members, teams, refreshTeams, isLead, readOnly, currentUserId, updateTask, addAssignees, removeAssignee, openTask, openQuickAdd, ensureClosedFrom } = useTasksContext();
   const router = useRouter();
   const [dialog, setDialog] = useState<"new" | "edit" | null>(null);
   const canManage = isLead && !readOnly;
@@ -69,6 +69,8 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
 
   const current = myTeams.find((t) => t.id === team) ?? null;
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
+  // An older week shows its completed tasks too (they load on demand).
+  useEffect(() => { ensureClosedFrom(toISODate(weekStart)); }, [weekStart, ensureClosedFrom]);
   const today = todayISO();
   const from = toISODate(weekStart), to = toISODate(addDays(weekStart, 6));
 

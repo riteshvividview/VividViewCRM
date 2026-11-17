@@ -42,7 +42,7 @@ function InlineAdd({ onAdd, placeholder = "Add task" }: { onAdd: (title: string)
 
 /** Weekly planner: 7 day columns, drag & drop, inline add and a waiting list. */
 export function WeeklyPlanner({ projectId, teamId, title = "Planner" }: { projectId?: string; teamId?: string; title?: string } = {}) {
-  const { tasks, loading, members, projects, currentUserId, addTask, updateTask, openTask, openQuickAdd, reminders } = useTasksContext();
+  const { tasks, loading, members, projects, currentUserId, addTask, updateTask, openTask, openQuickAdd, reminders, ensureClosedFrom } = useTasksContext();
   const [hideReminders, setHideReminders] = useState(false);
   const [brand, setBrand] = useState<string>("all");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -72,6 +72,8 @@ export function WeeklyPlanner({ projectId, teamId, title = "Planner" }: { projec
   }
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
+  // An older week shows its completed tasks too (they load on demand).
+  useEffect(() => { ensureClosedFrom(toISODate(weekStart)); }, [weekStart, ensureClosedFrom]);
   const today = todayISO();
   const scopeUser = scope === "me" ? currentUserId : scope === "all" ? null : scope;
 

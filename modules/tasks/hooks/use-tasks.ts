@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useShellProfile } from "@/lib/supabase/profile-context";
 import type { Task } from "../types";
 import { TASKS_CHANGED_EVENT, countPending } from "./use-pending-task-count";
@@ -71,18 +71,30 @@ const EMPTY_TASK: Omit<Task, "id" | "created_at" | "updated_at"> = {
   workspace_id: null,
 };
 
+/** Completed tasks older than this are loaded only when someone asks for them. */
+const CLOSED_WINDOW_DAYS = 60;
+const windowStart = () => new Date(Date.now() - CLOSED_WINDOW_DAYS * 864e5).toISOString().slice(0, 10);
+
 export function useTasks() {
   const profile = useShellProfile();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const currentUserId = profile?.user_id ?? null;
 
+  // Completed tasks are loaded from this date on; earlier ones on request.
+  const [closedFrom, setClosedFrom] = useState(windowStart);
+  const [hasOlderClosed, setHasOlderClosed] = useState(false);
+  const closedFromRef = useRef(closedFrom);
+  closedFromRef.current = closedFrom;
+
   /** `silent` re-reads without the loading state (used for live updates). */
   const fetchTasks = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const result = await apiFetch<{ items: Task[] }>("/api/tasks?limit=1000");
+      // Open tasks plus everything completed in the window (kept wider if the person paged back).
+      const result = await apiFetch<{ items: Task[]; older_closed?: boolean }>(`/api/tasks?limit=1000&done_since=${closedFromRef.current}`);
       setTasks(result.items ?? []);
+      setHasOlderClosed(!!result.older_closed);
     } catch (e) {
       console.error("[useTasks] fetchTasks failed:", e);
       if (!silent) setTasks([]);
@@ -90,6 +102,35 @@ export function useTasks() {
       setLoading(false);
     }
   }, []);
+
+  /** Adds tasks to the list, replacing copies already there. */
+  const mergeIn = useCallback((items: Task[]) => {
+    if (!items.length) return;
+    const fresh = new Map(items.map((t) => [t.id, t]));
+    setTasks((prev) => [...prev.map((t) => fresh.get(t.id) ?? t), ...items.filter((t) => !prev.some((p) => p.id === t.id))]);
+  }, []);
+
+  /** "Show older completed tasks": the next 50 before the oldest one shown. */
+  const loadOlderClosed = useCallback(async () => {
+    const shown = tasks.filter((t) => t.status === "done" && t.completed_at).map((t) => t.completed_at as string).sort();
+    const before = shown[0] ?? new Date(`${closedFromRef.current}T00:00:00Z`).toISOString();
+    const { items } = await apiFetch<{ items: Task[] }>(`/api/tasks?status=done&done_before=${encodeURIComponent(before)}&limit=50`);
+    mergeIn(items ?? []);
+    setHasOlderClosed((items ?? []).length === 50);
+    const oldest = (items ?? []).map((t) => t.completed_at as string).filter(Boolean).sort()[0];
+    if (oldest && oldest.slice(0, 10) < closedFromRef.current) setClosedFrom(oldest.slice(0, 10));
+  }, [tasks, mergeIn]);
+
+  /** Makes sure completed tasks from this date on are loaded (planners going back in time). */
+  const ensureClosedFrom = useCallback(async (date: string) => {
+    if (date >= closedFromRef.current) return;
+    const until = closedFromRef.current;
+    setClosedFrom(date);
+    try {
+      const { items } = await apiFetch<{ items: Task[] }>(`/api/tasks?status=done&done_since=${date}&done_before=${until}&limit=1000`);
+      mergeIn(items ?? []);
+    } catch {}
+  }, [mergeIn]);
 
   /**
    * Re-reads only these tasks (after someone changed them) and merges them in.
@@ -275,7 +316,7 @@ export function useTasks() {
   }, []);
 
   return {
-    tasks, refreshTaskIds, loading, fetchTasks, addTask, updateTask, deleteTask, refreshTask,
+    tasks, refreshTaskIds, hasOlderClosed, loadOlderClosed, ensureClosedFrom, loading, fetchTasks, addTask, updateTask, deleteTask, refreshTask,
     addAssignees, removeAssignee, addLabel, removeLabel, setTasks, currentUserId,
   };
 }

@@ -156,16 +156,30 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
     if (a.activity) { setActivity(a.activity); setProfiles(a.profiles ?? {}); }
   }, [taskId]);
 
-  // Opening a task: the whole conversation and its activity, once.
+  // Older messages load on request ("Load earlier messages").
+  const [hasEarlier, setHasEarlier] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  async function loadEarlier() {
+    const first = messages[0]?.created_at;
+    if (!first) return;
+    setLoadingEarlier(true);
+    try {
+      const c = await fetch(`/api/tasks/${taskId}/comments?limit=50&before=${encodeURIComponent(first)}`).then((r) => r.json());
+      if (c.comments) { setMessages((m) => [...c.comments.filter((x: ChatMessage) => !m.some((y) => y.id === x.id)), ...m]); setHasEarlier(!!c.has_more); }
+    } catch {} finally { setLoadingEarlier(false); }
+  }
+
+  // Opening a task: the latest 50 messages and its activity, once.
   useEffect(() => {
     let cancelled = false;
-    setLoadingChat(true); setMessages([]); setActivity([]);
+    setLoadingChat(true); setMessages([]); setActivity([]); setHasEarlier(false);
     Promise.all([
-      fetch(`/api/tasks/${taskId}/comments`).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/tasks/${taskId}/comments?limit=50`).then((r) => r.json()).catch(() => ({})),
       fetch(`/api/tasks/${taskId}/activity`).then((r) => r.json()).catch(() => ({})),
     ]).then(([c, a]) => {
       if (cancelled) return;
       setMessages(c.comments ?? []);
+      setHasEarlier(!!c.has_more);
       setActivity(a.activity ?? []);
       setProfiles(a.profiles ?? {});
       setLoadingChat(false);
@@ -217,8 +231,9 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
 
   const items = useMemo<Item[]>(() => [
     ...messages.map((msg) => ({ kind: "message" as const, at: msg.created_at, msg })),
-    ...activity.filter((e) => e.action !== "created").map((entry) => ({ kind: "activity" as const, at: entry.created_at, entry })),
-  ].sort((a, b) => a.at.localeCompare(b.at)), [messages, activity]);
+    ...activity.filter((e) => e.action !== "created" && (!hasEarlier || !messages.length || e.created_at >= messages[0].created_at))
+      .map((entry) => ({ kind: "activity" as const, at: entry.created_at, entry })),
+  ].sort((a, b) => a.at.localeCompare(b.at)), [messages, activity, hasEarlier]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: "end" }); }, [items.length]);
 
@@ -292,6 +307,12 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
               </div>
             ))}
           </div>
+        )}
+        {!loadingChat && hasEarlier && (
+          <button type="button" onClick={loadEarlier} disabled={loadingEarlier}
+            className="mx-auto mb-2 block rounded-full border px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60">
+            {loadingEarlier ? "Loading…" : "Load earlier messages"}
+          </button>
         )}
         {!loadingChat && items.length === 0 && <p className="py-10 text-center text-xs text-muted-foreground">No messages yet. Start the conversation — type @ to mention someone.</p>}
         {items.map((it) => {

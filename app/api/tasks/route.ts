@@ -13,7 +13,10 @@ const PRIORITIES = ["none", "low", "medium", "high", "urgent"];
 
 /**
  * GET filters: status, assignee_id, project_id, search, limit,
- * planned_from / planned_to (planner week), unscheduled=1 (waiting list), include_done=0.
+ * planned_from / planned_to (planner week), unscheduled=1 (waiting list), include_done=0,
+ * done_since=<date>: open tasks plus tasks completed since then (the app's default list),
+ *   answered with older_closed: whether earlier completed tasks exist,
+ * done_before=<time> (with status=done): completed tasks before that, newest first (paging back).
  */
 export async function GET(request: NextRequest) {
   const ctx = await getAuthContext();
@@ -35,6 +38,13 @@ export async function GET(request: NextRequest) {
 
   if (status) query = query.in("status", status.split(",").map((s) => s.trim()).filter(Boolean));
   if (params.get("include_done") === "0") query = query.neq("status", "done");
+  const isTime = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/.test(v);
+  const doneSince = params.get("done_since");
+  const doneBefore = params.get("done_before");
+  if (isTime(doneSince) && !status) query = query.or(`status.neq.done,completed_at.gte.${doneSince}`);
+  if (isTime(doneSince) && status) query = query.gte("completed_at", doneSince);
+  if (isTime(doneBefore)) query = query.lt("completed_at", doneBefore);
+  const byCompletion = status === "done" && (isTime(doneBefore) || isTime(doneSince));
   if (projectId) query = query.eq("project_id", projectId);
   if (search) query = query.ilike("title", `%${search.replace(/[%_]/g, "")}%`);
   if (params.get("unscheduled") === "1") query = query.is("planned_date", null);
@@ -50,10 +60,17 @@ export async function GET(request: NextRequest) {
   }
 
   // One round trip: the tasks with everything attached, people's names and "my teams" in parallel.
-  const [{ data, error }, mine, people] = await Promise.all([
-    query.order("position", { ascending: true }).order("created_at", { ascending: false }).limit(limit),
+  const ordered = byCompletion
+    ? query.order("completed_at", { ascending: false }).limit(limit)
+    : query.order("position", { ascending: true }).order("created_at", { ascending: false }).limit(limit);
+  const [{ data, error }, mine, people, older] = await Promise.all([
+    ordered,
     myTeamIds(admin, ctx.userId),
     workspacePeople(admin, ctx.workspaceId),
+    // With the default list: are there completed tasks older than the window?
+    isTime(doneSince) && !status
+      ? admin.from("tasks").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspaceId).eq("status", "done").lt("completed_at", doneSince)
+      : Promise.resolve({ count: null }),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
@@ -65,7 +82,7 @@ export async function GET(request: NextRequest) {
   // can_edit: creator, assignees and leads; can_chat: anyone with team access.
   const items = (brandView ? all : all.filter((t) => taskVisible(ctx, mine, t)))
     .map((t) => ({ ...t, can_edit: taskEditable(ctx, t), can_chat: !ctx.readOnly && taskVisible(ctx, mine, t) }));
-  return NextResponse.json({ items });
+  return NextResponse.json({ items, ...(older.count !== null ? { older_closed: (older.count ?? 0) > 0 } : {}) });
 }
 
 export async function POST(request: NextRequest) {

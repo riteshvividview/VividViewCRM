@@ -63,6 +63,7 @@ function serializeComment(c: RawComment, profileByUserId: Map<string, TaskMember
 /**
  * Lists non-deleted comments for a task, oldest first, with author profiles resolved.
  * ?after=<ISO time> returns only messages newer than that (live updates fetch just the new ones).
+ * ?limit=N returns the newest N (oldest first) with has_more; ?before=<time> pages further back.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
@@ -83,13 +84,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .is("deleted_at", null);
   // Compared as given: message times have microseconds that a JavaScript date would drop.
   if (after && /^\d{4}-\d{2}-\d{2}[T ][\d:.]+([+-]\d{2}:?\d{2}|Z)?$/.test(after)) q = q.gt("created_at", after);
-  const { data: comments, error } = await q.order("created_at", { ascending: true });
+  const before = request.nextUrl.searchParams.get("before");
+  if (before && /^\d{4}-\d{2}-\d{2}[T ][\d:.]+([+-]\d{2}:?\d{2}|Z)?$/.test(before)) q = q.lt("created_at", before);
+  const limit = Math.min(Math.max(Number(request.nextUrl.searchParams.get("limit")) || 0, 0), 200);
+  // With a limit: the newest page, read newest-first and turned back to oldest-first.
+  const res = limit ? await q.order("created_at", { ascending: false }).limit(limit + 1) : await q.order("created_at", { ascending: true });
+  const { error } = res;
+  let comments = res.data ?? [];
+  const hasMore = !!limit && comments.length > limit;
+  if (limit) comments = comments.slice(0, limit).reverse();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   const profileByUserId = await profilesByUserId(admin, [...new Set((comments ?? []).map((c) => c.author_id))]);
 
   const files = await attachmentsFor(admin, id, (comments ?? []) as RawComment[]);
-  return NextResponse.json({ comments: (comments ?? []).map((c) => serializeComment(c as RawComment, profileByUserId, files)) });
+  return NextResponse.json({ comments: (comments ?? []).map((c) => serializeComment(c as RawComment, profileByUserId, files)), ...(limit ? { has_more: hasMore } : {}) });
 }
 
 /** Adds a comment to a task. Parses @mentions of workspace members and notifies them. */

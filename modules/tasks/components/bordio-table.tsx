@@ -104,12 +104,26 @@ export function BordioTable({ tasks, columns, onOpen, onCreate, selectedId }: Pr
   return (
     <div className="overflow-x-auto overflow-y-hidden pb-1">
       <Group title="Open tasks" tasks={open} onCreate={onCreate} {...shared} />
-      <Group title="Closed tasks" tasks={closed} defaultOpen={closed.length <= 50} {...shared} />
+      <Group title="Closed tasks" tasks={closed} defaultOpen={closed.length <= 50} {...shared} footer={<OlderClosedButton />} />
     </div>
   );
 }
 
-function Group({ title, tasks, columns, onOpen, onCreate, selectedId, defaultOpen = true, cols, width, onResize, settings }: {
+/** Completed tasks older than ~60 days load only when asked for. */
+function OlderClosedButton() {
+  const { hasOlderClosed, loadOlderClosed } = useTasksContext();
+  const [busy, setBusy] = useState(false);
+  if (!hasOlderClosed) return null;
+  return (
+    <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await loadOlderClosed(); } finally { setBusy(false); } }}
+      className="sticky left-9 ml-9 mt-1.5 inline-flex items-center gap-1.5 py-1 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60">
+      <FontAwesomeIcon icon={faChevronDown} className={cn("h-3 w-3", busy && "animate-pulse")} />{busy ? "Loading…" : "Show older completed tasks"}
+    </button>
+  );
+}
+
+function Group({ title, tasks, columns, onOpen, onCreate, selectedId, defaultOpen = true, cols, width, onResize, settings, footer }: {
+  footer?: React.ReactNode;
   title: string; tasks: Task[]; columns?: BoardColumn[]; onOpen: (t: Task) => void; onCreate?: () => void; selectedId?: string | null; defaultOpen?: boolean;
   cols: typeof COLUMNS; width: (id: ColId) => number; onResize: (id: ColId, w: number | null) => void; settings: React.ReactNode;
 }) {
@@ -151,6 +165,7 @@ function Group({ title, tasks, columns, onOpen, onCreate, selectedId, defaultOpe
               <FontAwesomeIcon icon={faPlus} className="h-3 w-3" />Create task
             </button>
           )}
+          {footer}
         </div>
       )}
     </div>

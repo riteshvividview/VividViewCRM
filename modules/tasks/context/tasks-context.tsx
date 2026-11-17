@@ -49,6 +49,11 @@ interface TasksContextValue {
   openQuickAdd: (defaults?: Partial<AddTaskInput>) => void;
   refreshProjects: () => Promise<void>;
   refreshTasks: () => Promise<void>;
+  /** Completed tasks older than the loaded window exist on the server. */
+  hasOlderClosed: boolean;
+  loadOlderClosed: () => Promise<void>;
+  /** Loads completed tasks from this date (YYYY-MM-DD) if not loaded yet. */
+  ensureClosedFrom: (date: string) => Promise<void>;
 }
 
 const TasksContext = createContext<TasksContextValue | null>(null);
@@ -63,7 +68,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went
 
 export function TasksProvider({ children }: { children: ReactNode }) {
   const {
-    tasks, loading, fetchTasks, refreshTaskIds, addTask, updateTask, deleteTask, refreshTask, currentUserId,
+    tasks, loading, fetchTasks, refreshTaskIds, hasOlderClosed, loadOlderClosed, ensureClosedFrom, addTask, updateTask, deleteTask, refreshTask, currentUserId,
     addAssignees, removeAssignee,
   } = useTasks();
   const shellProfile = useShellProfile();
@@ -192,6 +197,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     canDelete: (task) => !readOnly && (isLead || (deleteRule === "creator" && task.created_by === currentUserId)),
     reminders: reminders.filter((r) => tasks.some((t) => t.id === r.id && t.status !== "done")),
     refreshTasks: () => fetchTasks(),
+    hasOlderClosed, loadOlderClosed, ensureClosedFrom,
     addTask: async (input) => {
       if (readOnly) { viewOnly(); return null; }
       try { return await addTask(input); } catch (e) { toast.error(errMsg(e)); return null; }
