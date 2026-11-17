@@ -12,10 +12,14 @@ export async function GET() {
       .select("user_id, full_name, role, disabled, avatar_url, created_at").eq("workspace_id", ceo.workspaceId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const emails = new Map<string, { email: string; created_at: string; name?: string }>();
+    const emails = new Map<string, { email: string; created_at: string; name?: string; last_sign_in_at: string | null; pending: boolean; must_change: boolean; two_factor: boolean; google: boolean }>();
     for (let page = 1; page <= 20; page++) {
       const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-      for (const u of data?.users ?? []) emails.set(u.id, { email: u.email ?? "", created_at: u.created_at, name: u.user_metadata?.full_name as string | undefined });
+      for (const u of data?.users ?? []) emails.set(u.id, {
+        email: u.email ?? "", created_at: u.created_at, name: u.user_metadata?.full_name as string | undefined,
+        last_sign_in_at: u.last_sign_in_at ?? null, pending: !!u.app_metadata?.invite_pending, must_change: !!u.app_metadata?.must_change_password,
+        two_factor: !!u.factors?.some((f) => f.status === "verified"), google: !!u.identities?.some((i) => i.provider === "google"),
+      });
       if ((data?.users?.length ?? 0) < 1000) break;
     }
 
@@ -29,6 +33,11 @@ export async function GET() {
         disabled: p.disabled ?? false,
         avatar_url: p.avatar_url ?? null,
         created_at: a?.created_at ?? p.created_at,
+        last_sign_in_at: a?.last_sign_in_at ?? null,
+        // "invited": waiting for the setup link; "temp_password": must replace the CEO-set password.
+        setup: a?.pending ? "invited" : a?.must_change ? "temp_password" : "done",
+        two_factor: a?.two_factor ?? false,
+        google: a?.google ?? false,
       };
     });
     return NextResponse.json(users);

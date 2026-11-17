@@ -3,8 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Plus, Shield, UserRound, Loader2, MoreHorizontal, UserX, UserCheck,
-  Puzzle, Trash2,
+  Puzzle, Trash2, Eye, EyeOff,
 } from "@/components/shared/fa-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEnvelope, faKey, faMobileScreen, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
+import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MODULES } from "@/lib/rbac/modules";
 import { Button } from "@/components/ui/button";
@@ -34,6 +37,46 @@ interface UserRow {
   disabled: boolean;
   created_at: string;
   avatar_url: string | null;
+  last_sign_in_at: string | null;
+  /** invited = setup link not used yet; temp_password = must replace the CEO-set password. */
+  setup: "invited" | "temp_password" | "done";
+  two_factor: boolean;
+  google: boolean;
+}
+
+interface TeamOption { id: string; name: string; color: string | null }
+const EMPTY_INVITE = { full_name: "", email: "", role: "employee" as UserRole, team_ids: [] as string[], password: "" };
+
+/** 12 characters from an alphabet without look-alikes, always with a letter and a number. */
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const pick = (n: number) => Array.from(crypto.getRandomValues(new Uint32Array(n)), (x) => chars[x % chars.length]).join("");
+  let pw = pick(12);
+  while (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) pw = pick(12);
+  return pw;
+}
+
+function StatusBadge({ user }: { user: UserRow }) {
+  const s = user.disabled ? { label: "Inactive", cls: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400", dot: "bg-red-500" }
+    : user.setup === "invited" ? { label: "Not activated", cls: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", dot: "bg-amber-500" }
+    : user.setup === "temp_password" ? { label: "Temporary password", cls: "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400", dot: "bg-sky-500" }
+    : { label: "Active", cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", dot: "bg-emerald-500" };
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", s.cls)}
+      title={user.setup === "invited" ? "Has not activated the account yet" : user.setup === "temp_password" ? "Must replace the password you set at their next sign-in" : undefined}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", s.dot)} />{s.label}
+    </span>
+  );
+}
+
+function SignInHints({ user }: { user: UserRow }) {
+  return (
+    <span className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+      {user.google && <span title="Signs in with Google"><FontAwesomeIcon icon={faGoogle} className="h-2.5 w-2.5" /></span>}
+      {user.two_factor && <span title="Two-factor sign-in is on"><FontAwesomeIcon icon={faMobileScreen} className="h-2.5 w-2.5" /></span>}
+      {user.last_sign_in_at ? `Last sign-in ${new Date(user.last_sign_in_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : "Never signed in"}
+    </span>
+  );
 }
 
 const ROLE_CONFIG: Record<UserRole, { label: string; color: string }> = {
@@ -49,7 +92,11 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ full_name: "", email: "", role: "employee" as UserRole });
+  const [inviteForm, setInviteForm] = useState(EMPTY_INVITE);
+  const [withPassword, setWithPassword] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [helpBusy, setHelpBusy] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [modulesUser, setModulesUser] = useState<UserRow | null>(null);
   const [moduleData, setModuleData] = useState<{ module_id: string; label: string; group: string; isDefault: boolean; isGranted: boolean }[]>([]);
@@ -72,6 +119,23 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
+  // Task teams for "Teams" in the add form.
+  useEffect(() => {
+    if (!inviteOpen) return;
+    fetch("/api/tasks/teams").then((r) => (r.ok ? r.json() : { teams: [] })).then((j) => setTeamOptions(j.teams ?? [])).catch(() => setTeamOptions([]));
+  }, [inviteOpen]);
+
+  async function helpAccess(user: UserRow, action: "remind" | "reset_code" | "reset_2fa") {
+    if (action === "reset_2fa" && !window.confirm(`Remove the authenticator app from ${user.full_name || user.email}? They will sign in with their password alone until they set it up again.`)) return;
+    setHelpBusy(user.id);
+    try {
+      const res = await fetch(`/api/users/${user.id}/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data.error ?? "Something went wrong"); return; }
+      toast.success(action === "remind" ? `Reminder sent to ${user.email}` : action === "reset_code" ? `Reset code sent to ${user.email}. They enter it under "Forgot password?".` : "Two-factor sign-in was reset");
+      loadUsers();
+    } finally { setHelpBusy(null); }
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -80,13 +144,15 @@ export default function UsersPage() {
       const res = await fetch("/api/users/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inviteForm),
+        body: JSON.stringify({ ...inviteForm, password: withPassword ? inviteForm.password : "" }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? "Failed to invite user"); return; }
-      toast.success(`Invitation sent to ${inviteForm.email}`);
+      if (!res.ok) { toast.error(data.error ?? "Could not add this person"); return; }
+      if (data.mode === "password") toast.success(`${inviteForm.full_name} was added. Share the password with them; they will choose their own at first sign-in.`, { duration: 8000 });
+      else toast.success(`${inviteForm.full_name} was added. They activate the account on the sign-in page ("First time here?").`, { duration: 8000 });
       setInviteOpen(false);
-      setInviteForm({ full_name: "", email: "", role: "employee" });
+      setInviteForm(EMPTY_INVITE);
+      setWithPassword(false);
       loadUsers();
     } catch {
       toast.error("Failed to send invitation");
@@ -174,14 +240,14 @@ export default function UsersPage() {
     <div>
       <PageHeader
         title="User Management"
-        description="Invite users and manage their roles"
+        description="Only people added here can sign in"
         action={
           <Button
             onClick={() => setInviteOpen(true)}
             className="bg-purple-700 hover:bg-purple-800 text-white gap-2"
           >
             <Plus className="h-4 w-4" />
-            Invite User
+            Add person
           </Button>
         }
       />
@@ -236,15 +302,8 @@ export default function UsersPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
-                            user.disabled
-                              ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          )}>
-                            <span className={cn("h-1.5 w-1.5 rounded-full", user.disabled ? "bg-red-500" : "bg-emerald-500")} />
-                            {user.disabled ? "Inactive" : "Active"}
-                          </span>
+                          <StatusBadge user={user} />
+                          <SignInHints user={user} />
                         </td>
                         <td className="px-6 py-4 text-muted-foreground text-xs whitespace-nowrap">
                           {new Date(user.created_at).toLocaleDateString("en-IN", {
@@ -258,6 +317,8 @@ export default function UsersPage() {
                             onToggleDisabled={handleToggleDisabled}
                             onManageModules={openModulesDialog}
                             onRemove={setRemoveTarget}
+                            onHelp={helpAccess}
+                            busy={helpBusy === user.id}
                           />
                         </td>
                       </tr>
@@ -286,15 +347,7 @@ export default function UsersPage() {
                         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold", rc.color)}>
                           <Shield className="h-3 w-3" />{rc.label}
                         </span>
-                        <span className={cn(
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold",
-                          user.disabled
-                            ? "bg-red-50 text-red-600"
-                            : "bg-emerald-50 text-emerald-700"
-                        )}>
-                          <span className={cn("h-1.5 w-1.5 rounded-full", user.disabled ? "bg-red-500" : "bg-emerald-500")} />
-                          {user.disabled ? "Inactive" : "Active"}
-                        </span>
+                        <StatusBadge user={user} />
                       </div>
                     </div>
                     <UserActionsMenu
@@ -303,6 +356,8 @@ export default function UsersPage() {
                       onToggleDisabled={handleToggleDisabled}
                       onManageModules={openModulesDialog}
                       onRemove={setRemoveTarget}
+                      onHelp={helpAccess}
+                      busy={helpBusy === user.id}
                     />
                   </div>
                 );
@@ -316,7 +371,7 @@ export default function UsersPage() {
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="w-full sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Invite Team Member</DialogTitle>
+            <DialogTitle>Add a person</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleInvite} className="space-y-4 mt-2">
             <div className="space-y-1.5">
@@ -358,9 +413,54 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              A temporary password will be auto-generated and emailed to this address.
-            </p>
+            {teamOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Teams <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {teamOptions.map((t) => {
+                    const on = inviteForm.team_ids.includes(t.id);
+                    return (
+                      <button key={t.id} type="button" aria-pressed={on}
+                        onClick={() => setInviteForm((f) => ({ ...f, team_ids: on ? f.team_ids.filter((x) => x !== t.id) : [...f.team_ids, t.id] }))}
+                        className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors", on ? "border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "hover:bg-muted")}>
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color ?? "#6366f1" }} />{t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 rounded-xl border p-3">
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <input type="radio" name="access" className="mt-1 accent-purple-600" checked={!withPassword} onChange={() => setWithPassword(false)} />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium"><FontAwesomeIcon icon={faEnvelope} className="h-3 w-3 text-muted-foreground" />They activate it themselves</span>
+                  <span className="block text-xs text-muted-foreground">Nothing is sent now. On the sign-in page they click &quot;First time here?&quot;, get a code by email and choose a password, or use Google.</span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <input type="radio" name="access" className="mt-1 accent-purple-600" checked={withPassword} onChange={() => { setWithPassword(true); if (!inviteForm.password) setInviteForm((f) => ({ ...f, password: generatePassword() })); }} />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium"><FontAwesomeIcon icon={faKey} className="h-3 w-3 text-muted-foreground" />Set a password myself</span>
+                  <span className="block text-xs text-muted-foreground">No email is sent. Share it with them; they must replace it at their first sign-in.</span>
+                </span>
+              </label>
+              {withPassword && (
+                <div className="flex gap-2 pl-6">
+                  <div className="relative flex-1">
+                    <Input type={showPw ? "text" : "password"} value={inviteForm.password} onChange={(e) => setInviteForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="8+ characters, a letter and a number" autoComplete="new-password" className="h-10 pr-9 font-mono" maxLength={72} />
+                    <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <Button type="button" variant="outline" className="h-10" title="Generate a password" onClick={() => { setInviteForm((f) => ({ ...f, password: generatePassword() })); setShowPw(true); }}>
+                    <FontAwesomeIcon icon={faWandMagicSparkles} className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
                 Cancel
@@ -371,7 +471,7 @@ export default function UsersPage() {
                 className="bg-purple-700 hover:bg-purple-800 text-white gap-2"
               >
                 {inviting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {inviting ? "Sending…" : "Send Invitation"}
+                {inviting ? "Adding…" : "Add person"}
               </Button>
             </DialogFooter>
           </form>
@@ -474,21 +574,39 @@ function UserActionsMenu({
   onToggleDisabled,
   onManageModules,
   onRemove,
+  onHelp,
+  busy,
 }: {
   user: UserRow;
   onRoleChange: (id: string, role: UserRole) => void;
   onToggleDisabled: (id: string, disabled: boolean) => void;
   onManageModules: (user: UserRow) => void;
   onRemove: (user: UserRow) => void;
+  onHelp: (user: UserRow, action: "remind" | "reset_code" | "reset_2fa") => void;
+  busy?: boolean;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-          <MoreHorizontal className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Actions for ${user.full_name || user.email}`} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-56">
+        {!user.disabled && (
+          <>
+            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Sign-in help</p>
+            {user.setup === "invited" ? (
+              <DropdownMenuItem onClick={() => onHelp(user, "remind")}><FontAwesomeIcon icon={faEnvelope} className="mr-2 h-3.5 w-3.5" />Email an activation reminder</DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => onHelp(user, "reset_code")}><FontAwesomeIcon icon={faKey} className="mr-2 h-3.5 w-3.5" />Email a password reset code</DropdownMenuItem>
+            )}
+            {user.two_factor && (
+              <DropdownMenuItem onClick={() => onHelp(user, "reset_2fa")}><FontAwesomeIcon icon={faMobileScreen} className="mr-2 h-3.5 w-3.5" />Reset two-factor</DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+          </>
+        )}
         <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Change Role</p>
         {ALL_ROLES.map((r) => (
           <DropdownMenuItem

@@ -35,6 +35,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Accounts with an authenticator app must pass the second step before anything opens.
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") redirect("/auth/mfa");
+  // Signed in with a password the CEO set: choose your own first.
+  if (user.app_metadata?.must_change_password) redirect("/auth/set-password");
 
   const metaName = (user.user_metadata?.full_name as string | undefined)?.trim() ?? "";
 
@@ -60,15 +62,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Switched off by the CEO: sign out and say why.
   if (profile?.disabled) redirect("/auth/inactive");
 
-  // Auto-create profile if missing
-  if (!profile) {
-    const { data: created } = await supabase
-      .from("profiles")
-      .upsert({ user_id: user.id, full_name: metaName || user.email?.split("@")[0] || "" }, { onConflict: "user_id" })
-      .select()
-      .single();
-    profile = created;
-  }
+  // Only people the CEO added have a profile; anyone else is signed out again.
+  // A login with no workspace (nobody added it) is signed out again.
+  if (!profile?.workspace_id) redirect("/auth/inactive?reason=no_account");
 
   const resolvedName = profile?.full_name?.trim() || metaName || user.email?.split("@")[0] || "User";
 

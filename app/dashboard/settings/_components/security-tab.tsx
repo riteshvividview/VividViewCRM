@@ -21,7 +21,8 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
   );
 }
 
-const onlyDigits = (v: string) => v.replace(/\D/g, "").slice(0, 6);
+// Email codes can be up to 10 digits (Supabase setting); authenticator codes are 6.
+const onlyDigits = (v: string) => v.replace(/\D/g, "").slice(0, 10);
 
 // ── Password ─────────────────────────────────────────────────────────────────
 /** New password, confirmed with a 6-digit code sent to the account's email. */
@@ -43,11 +44,11 @@ function PasswordCard() {
   useEffect(() => { if (open) { setStep("form"); setPw(""); setConfirm(""); setCode(""); } }, [open]);
 
   async function sendCode() {
-    if (pw.length < 8) { toast.error("Password must be at least 8 characters"); return; }
+    if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/d/.test(pw)) { toast.error("Use at least 8 characters with a letter and a number"); return; }
     if (pw !== confirm) { toast.error("Passwords don't match"); return; }
     setBusy(true);
     try {
-      const res = await fetch("/api/auth/otp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "password_change" }) });
+      const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "code" }) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(json.error ?? "Could not send the code"); return; }
       toast.success("Verification code sent to your email");
@@ -59,12 +60,11 @@ function PasswordCard() {
     if (code.length < 6) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/auth/otp/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ otp: code, type: "password_change" }) });
+      // Code and new password are checked together on the server.
+      const res = await fetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "change", code, password: pw }) });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(json.error ?? "Invalid code"); return; }
-      const { error } = await createClient().auth.updateUser({ password: pw });
-      if (error) { toast.error(error.message); return; }
-      toast.success("Password updated");
+      if (!res.ok) { toast.error(json.error ?? "Could not change the password"); return; }
+      toast.success("Password updated. We emailed you a confirmation.");
       setOpen(false);
     } finally { setBusy(false); }
   }
@@ -80,7 +80,7 @@ function PasswordCard() {
               <div className="space-y-1.5">
                 <Label htmlFor="new-pw">New password</Label>
                 <div className="relative">
-                  <Input id="new-pw" type={show ? "text" : "password"} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 8 characters" className="pr-9" autoComplete="new-password" />
+                  <Input id="new-pw" type={show ? "text" : "password"} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="8+ characters, a letter and a number" className="pr-9" autoComplete="new-password" />
                   <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     <FontAwesomeIcon icon={show ? faEyeSlash : faEye} className="h-3.5 w-3.5" />
                   </button>
@@ -91,11 +91,11 @@ function PasswordCard() {
                 <Input id="confirm-pw" type={show ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" onKeyDown={(e) => { if (e.key === "Enter") sendCode(); }} />
                 {confirm && pw !== confirm && <p className="text-xs text-red-500">Passwords don&apos;t match</p>}
               </div>
-              <p className="text-xs text-muted-foreground">We&apos;ll email you a 6-digit code to confirm the change.</p>
+              <p className="text-xs text-muted-foreground">We&apos;ll email you a code to confirm the change.</p>
             </div>
           ) : (
             <div className="grid gap-3">
-              <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to your email.</p>
+              <p className="text-sm text-muted-foreground">Enter the code sent to your email.</p>
               <Input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(onlyDigits(e.target.value))} onKeyDown={(e) => { if (e.key === "Enter") verify(); }}
                 placeholder="000000" className="h-12 text-center text-xl font-semibold tracking-[0.5em]" />
               <button type="button" disabled={busy || cooldown > 0} onClick={sendCode} className="justify-self-start text-xs text-primary hover:underline disabled:text-muted-foreground disabled:no-underline">

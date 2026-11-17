@@ -3,8 +3,6 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { sendEmail } from "@/lib/brevo/client";
-import { buildInviteEmail } from "@/lib/brevo/invite-template";
 
 function adminClient() {
   return createAdminClient(
@@ -12,27 +10,6 @@ function adminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
-}
-
-function generatePassword(): string {
-  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower = "abcdefghjkmnpqrstuvwxyz";
-  const digits = "23456789";
-  const special = "!@#$%&*";
-  const all = upper + lower + digits + special;
-
-  const required = [
-    upper[Math.floor(Math.random() * upper.length)],
-    lower[Math.floor(Math.random() * lower.length)],
-    digits[Math.floor(Math.random() * digits.length)],
-    special[Math.floor(Math.random() * special.length)],
-  ];
-
-  for (let i = 4; i < 10; i++) {
-    required.push(all[Math.floor(Math.random() * all.length)]);
-  }
-
-  return required.sort(() => Math.random() - 0.5).join("");
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -94,13 +71,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "This employee already has a linked login account" }, { status: 400 });
     }
 
-    const password = generatePassword();
-
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password,
       email_confirm: true,
       user_metadata: { full_name },
+      // No password: they activate it themselves (emailed code) or use Google.
+      app_metadata: { invite_pending: true },
     });
 
     if (createError || !newUser?.user) {
@@ -131,15 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: linkError.message }, { status: 400 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const loginUrl = `${appUrl}/auth/login`;
-    const { subject, htmlContent } = buildInviteEmail(full_name, email, password, "employee", loginUrl);
-
-    try {
-      await sendEmail({ to: email, subject, htmlContent });
-    } catch (emailErr) {
-      console.error("Failed to send employee credentials email:", emailErr);
-    }
+    // Nothing is emailed: they activate the account themselves from the sign-in page.
 
     return NextResponse.json({ success: true });
   } catch (err) {

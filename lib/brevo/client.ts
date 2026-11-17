@@ -7,6 +7,17 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, htmlContent }: SendEmailOptions): Promise<void> {
+  // Reserved domains (.test, .invalid, .example, .localhost) can never receive mail:
+  // sending would only bounce and hurt the sender reputation. Locally, keep them in a file instead.
+  if (/\.(test|invalid|example|localhost)$/i.test(to.split("@")[1] ?? "")) {
+    if (process.env.NODE_ENV !== "production") {
+      const { appendFile } = await import("fs/promises");
+      const { join } = await import("path");
+      const { tmpdir } = await import("os");
+      await appendFile(join(tmpdir(), "vividview-dev-mail.jsonl"), JSON.stringify({ to, subject, htmlContent, at: new Date().toISOString() }) + "\n").catch(() => {});
+    }
+    return;
+  }
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
   const senderName = process.env.BREVO_SENDER_NAME ?? "Vivid View CRM";

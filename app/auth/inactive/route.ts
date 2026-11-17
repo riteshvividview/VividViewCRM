@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: Request) {
   const supabase = await createClient();
   await supabase.auth.signOut({ scope: "local" }).catch(() => {});
-  const expired = new URL(request.url).searchParams.get("expired") === "1";
-  return NextResponse.redirect(new URL(expired ? "/auth/login" : "/auth/login?inactive=1", request.url));
+  const q = new URL(request.url).searchParams;
+  const to = q.get("expired") === "1" ? "/auth/login" : q.get("reason") === "no_account" ? "/auth/login?error=no_account" : "/auth/login?inactive=1";
+  return NextResponse.redirect(new URL(to, request.url));
 }

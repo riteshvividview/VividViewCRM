@@ -1,161 +1,91 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { sendEmail } from "@/lib/brevo/client";
-import { buildInviteEmail } from "@/lib/brevo/invite-template";
 import type { UserRole } from "@/types";
-
-function adminClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
-
-function generatePassword(): string {
-  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower = "abcdefghjkmnpqrstuvwxyz";
-  const digits = "23456789";
-  const special = "!@#$%&*";
-  const all = upper + lower + digits + special;
-
-  const required = [
-    upper[Math.floor(Math.random() * upper.length)],
-    lower[Math.floor(Math.random() * lower.length)],
-    digits[Math.floor(Math.random() * digits.length)],
-    special[Math.floor(Math.random() * special.length)],
-  ];
-
-  for (let i = 4; i < 10; i++) {
-    required.push(all[Math.floor(Math.random() * all.length)]);
-  }
-
-  return required.sort(() => Math.random() - 0.5).join("");
-}
+import { adminClient, forbidden, getCeo } from "../_lib/access";
+import { isEmail, normEmail, passwordProblem } from "@/lib/auth/server";
 
 const VALID_ROLES: UserRole[] = ["super_admin", "hr", "team_lead", "employee"];
 
-async function generateEmployeeCode(
-  supabaseAdmin: ReturnType<typeof adminClient>,
-  workspaceId: string
-): Promise<string> {
-  const { data } = await supabaseAdmin
-    .from("hr_employees")
-    .select("employee_code")
-    .eq("workspace_id", workspaceId);
-
+async function nextEmployeeCode(db: ReturnType<typeof adminClient>, workspaceId: string): Promise<string> {
+  const { data } = await db.from("hr_employees").select("employee_code").eq("workspace_id", workspaceId);
   let max = 0;
   for (const row of data ?? []) {
-    const match = row.employee_code?.match(/^EMP-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1], 10);
-      if (n > max) max = n;
-    }
+    const m = row.employee_code?.match(/^EMP-(\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `EMP-${String(max + 1).padStart(3, "0")}`;
 }
 
+/**
+ * POST { full_name, email, role, team_ids?, password? } — the CEO adds someone.
+ * Nothing is emailed. Without a password they activate the account themselves on the
+ * sign-in page (emailed code, on their own device); with one, the CEO shares it and the
+ * person must replace it at their first sign-in.
+ */
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll(); },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              );
-            } catch {}
-          },
-        },
-      }
-    );
+    const ceo = await getCeo();
+    if (!ceo) return forbidden();
+    const db = adminClient();
+    const body = await request.json().catch(() => ({}));
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const full_name = typeof body.full_name === "string" ? body.full_name.trim().slice(0, 120) : "";
+    const email = normEmail(body.email);
+    const role = body.role as UserRole;
+    const password = typeof body.password === "string" && body.password !== "" ? body.password : null;
+    const teamIds: string[] = Array.isArray(body.team_ids) ? body.team_ids.filter((t: unknown) => typeof t === "string") : [];
 
-    const supabaseAdmin = adminClient();
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("role, workspace_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (callerProfile?.role !== "super_admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!full_name) return NextResponse.json({ error: "Enter their full name" }, { status: 400 });
+    if (!isEmail(email)) return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+    if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: "Choose a role" }, { status: 400 });
+    if (password) {
+      const weak = passwordProblem(password);
+      if (weak) return NextResponse.json({ error: `Password: ${weak.toLowerCase()}` }, { status: 400 });
     }
-    if (!callerProfile.workspace_id) {
-      return NextResponse.json({ error: "Your account is not linked to a workspace" }, { status: 400 });
-    }
+    const { data: existing } = await db.rpc("get_user_id_by_email", { user_email: email });
+    if (existing) return NextResponse.json({ error: "Someone with this email already has an account" }, { status: 409 });
 
-    const body = await request.json();
-    const full_name: string = body.full_name?.trim() ?? "";
-    const email: string = body.email?.trim().toLowerCase() ?? "";
-    const role: UserRole = body.role;
+    // Only teams of this workspace.
+    const { data: teams } = teamIds.length
+      ? await db.from("teams").select("id").eq("workspace_id", ceo.workspaceId).in("id", teamIds)
+      : { data: [] as { id: string }[] };
 
-    if (!full_name) return NextResponse.json({ error: "Full name is required" }, { status: 400 });
-    if (!email) return NextResponse.json({ error: "Email is required" }, { status: 400 });
-    if (!VALID_ROLES.includes(role)) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
-
-    const password = generatePassword();
-
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: created, error: createError } = await db.auth.admin.createUser({
       email,
-      password,
       email_confirm: true,
+      ...(password ? { password } : {}),
       user_metadata: { full_name },
+      app_metadata: password ? { must_change_password: true } : { invite_pending: true },
     });
-
-    if (createError || !newUser?.user) {
-      const msg = createError?.message ?? "Failed to create user";
-      return NextResponse.json({ error: msg }, { status: 400 });
+    if (createError || !created?.user) {
+      return NextResponse.json({ error: createError?.message ?? "Could not create the account" }, { status: 400 });
     }
+    const userId = created.user.id;
+    const undo = async () => {
+      await db.from("team_members").delete().eq("user_id", userId);
+      await db.from("hr_employees").delete().eq("user_id", userId);
+      await db.from("profiles").delete().eq("user_id", userId);
+      await db.auth.admin.deleteUser(userId);
+    };
 
-    const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
-      user_id: newUser.user.id,
-      full_name,
-      role,
-      workspace_id: callerProfile.workspace_id,
-    }, { onConflict: "user_id" });
+    const { error: profileError } = await db.from("profiles").upsert(
+      { user_id: userId, full_name, role, workspace_id: ceo.workspaceId }, { onConflict: "user_id" },
+    );
+    if (profileError) { await undo(); return NextResponse.json({ error: profileError.message }, { status: 400 }); }
 
-    if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      return NextResponse.json({ error: profileError.message }, { status: 400 });
-    }
-
-    const employee_code = await generateEmployeeCode(supabaseAdmin, callerProfile.workspace_id);
-
-    const { error: empError } = await supabaseAdmin.from("hr_employees").insert({
-      workspace_id: callerProfile.workspace_id,
-      user_id: newUser.user.id,
-      employee_code,
-      designation: "",
-      employment_type: "full_time",
-      date_of_joining: new Date().toISOString().split("T")[0],
-      status: "active",
+    const { error: empError } = await db.from("hr_employees").insert({
+      workspace_id: ceo.workspaceId, user_id: userId, employee_code: await nextEmployeeCode(db, ceo.workspaceId),
+      designation: "", employment_type: "full_time", date_of_joining: new Date().toISOString().split("T")[0], status: "active",
     });
+    if (empError) { await undo(); return NextResponse.json({ error: empError.message }, { status: 400 }); }
 
-    if (empError) {
-      await supabaseAdmin.from("profiles").delete().eq("user_id", newUser.user.id);
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      return NextResponse.json({ error: empError.message }, { status: 400 });
+    if (teams?.length) {
+      const rows = teams.map((t) => ({ team_id: t.id, user_id: userId, role: "member" }));
+      const { error } = await db.from("team_members").insert(rows);
+      if (error) await db.from("team_members").insert(rows.map((r) => ({ ...r, role: "rep" })));
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const loginUrl = `${appUrl}/auth/login`;
-    const { subject, htmlContent } = buildInviteEmail(full_name, email, password, role, loginUrl);
-
-    await sendEmail({ to: email, subject, htmlContent });
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, id: userId, mode: password ? "password" : "activate" });
   } catch (err) {
     console.error("POST /api/users/invite error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
