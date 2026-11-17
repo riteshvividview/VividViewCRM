@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useShellProfile } from "@/lib/supabase/profile-context";
 import type { Task } from "../types";
-import { TASKS_CHANGED_EVENT } from "./use-pending-task-count";
+import { TASKS_CHANGED_EVENT, countPending } from "./use-pending-task-count";
+import { readCache, writeCache } from "../lib/cache";
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -90,14 +91,41 @@ export function useTasks() {
     }
   }, []);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  /**
+   * Re-reads only these tasks (after someone changed them) and merges them in.
+   * Tasks that no longer come back were deleted or are now hidden from this person.
+   */
+  const refreshTaskIds = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    try {
+      const { items } = await apiFetch<{ items: Task[] }>(`/api/tasks?ids=${ids.join(",")}&limit=50`);
+      const fresh = new Map((items ?? []).map((t) => [t.id, t]));
+      setTasks((prev) => {
+        const kept = prev.filter((t) => !ids.includes(t.id) || fresh.has(t.id)).map((t) => fresh.get(t.id) ?? t);
+        const added = (items ?? []).filter((t) => !prev.some((p) => p.id === t.id));
+        return [...added, ...kept];
+      });
+    } catch {
+      fetchTasks(true);
+    }
+  }, [fetchTasks]);
 
-  // Tell the sidebar badge whenever the task list changes.
+  // Show the cached list at once, then refresh it quietly from the server.
+  useEffect(() => {
+    const cached = readCache<Task[]>(currentUserId, "tasks");
+    if (cached?.length) { setTasks(cached); setLoading(false); fetchTasks(true); }
+    else fetchTasks();
+  }, [fetchTasks, currentUserId]);
+
+  // Keep the cache in step, and give the sidebar badge its count (no request of its own).
   useEffect(() => {
     if (loading) return;
-    const t = setTimeout(() => window.dispatchEvent(new Event(TASKS_CHANGED_EVENT)), 800);
+    const t = setTimeout(() => {
+      writeCache(currentUserId, "tasks", tasks.filter((x) => !x.id.startsWith("temp-")));
+      window.dispatchEvent(new CustomEvent(TASKS_CHANGED_EVENT, { detail: { count: countPending(tasks, currentUserId) } }));
+    }, 500);
     return () => clearTimeout(t);
-  }, [tasks, loading]);
+  }, [tasks, loading, currentUserId]);
 
   const addTask = useCallback(async (t: AddTaskInput): Promise<Task> => {
     const tempId = `temp-${crypto.randomUUID()}`;
@@ -247,7 +275,7 @@ export function useTasks() {
   }, []);
 
   return {
-    tasks, loading, fetchTasks, addTask, updateTask, deleteTask, refreshTask,
+    tasks, refreshTaskIds, loading, fetchTasks, addTask, updateTask, deleteTask, refreshTask,
     addAssignees, removeAssignee, addLabel, removeLabel, setTasks, currentUserId,
   };
 }

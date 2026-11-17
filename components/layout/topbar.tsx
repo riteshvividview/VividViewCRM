@@ -81,6 +81,8 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
 
   async function handleSignOut() {
     const supabase = createClient();
+    // Nothing of this account stays in the browser.
+    (await import("@/modules/tasks/lib/cache")).clearAllCaches();
     await supabase.auth.signOut();
     toast.success("Signed out");
     window.location.href = "/auth/login";

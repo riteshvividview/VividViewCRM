@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
   const admin = adminClient();
@@ -78,7 +78,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
   const admin = adminClient();

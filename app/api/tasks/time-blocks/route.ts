@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, { tasks: [] });
   const body = await request.json().catch(() => ({}));
   const err = validRange(body.start_at, body.end_at);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, { tasks: [] });
   const body = await request.json().catch(() => ({}));
   const err = validRange(body.start_at, body.end_at);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
@@ -81,7 +81,7 @@ export async function DELETE(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, { tasks: [] });
   const id = request.nextUrl.searchParams.get("id") ?? "";
   const { error } = await adminClient().from("task_time_blocks").delete().eq("id", id).eq("workspace_id", ctx.workspaceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AuthCard, GoogleButton, Notice, OrDivider, PasswordInput } from "@/components/auth/auth-ui";
 import { createClient, setRemember } from "@/lib/supabase/client";
+import { clearAllCaches } from "@/modules/tasks/lib/cache";
 
 /** Messages for ?error= / ?inactive= / ?done= set by other steps. */
 const MESSAGES: Record<string, { tone: "warn" | "info" | "ok"; text: string }> = {
@@ -30,6 +31,8 @@ export default function LoginPage() {
   const inFlight = useRef(false);
 
   useEffect(() => {
+    // Whoever reaches sign-in starts with nothing cached from a previous account on this device.
+    clearAllCaches();
     const q = new URLSearchParams(window.location.search);
     const key = q.get("inactive") === "1" ? "inactive" : q.get("error") ?? q.get("done");
     if (key && MESSAGES[key]) setNotice(MESSAGES[key]);

@@ -60,8 +60,11 @@ function serializeComment(c: RawComment, profileByUserId: Map<string, TaskMember
   };
 }
 
-/** Lists non-deleted comments for a task, oldest first, with author profiles resolved. */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * Lists non-deleted comments for a task, oldest first, with author profiles resolved.
+ * ?after=<ISO time> returns only messages newer than that (live updates fetch just the new ones).
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -71,13 +74,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!task || !(await canReadTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
-  const { data: comments, error } = await admin
+  const after = request.nextUrl.searchParams.get("after");
+  let q = admin
     .from("task_comments")
     .select("id, task_id, body, author_id, parent_comment_id, edited_at, created_at, attachment_ids")
     .eq("task_id", id)
     .eq("workspace_id", ctx.workspaceId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: true });
+    .is("deleted_at", null);
+  // Compared as given: message times have microseconds that a JavaScript date would drop.
+  if (after && /^\d{4}-\d{2}-\d{2}[T ][\d:.]+([+-]\d{2}:?\d{2}|Z)?$/.test(after)) q = q.gt("created_at", after);
+  const { data: comments, error } = await q.order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   const profileByUserId = await profilesByUserId(admin, [...new Set((comments ?? []).map((c) => c.author_id))]);
@@ -91,7 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
   const admin = adminClient();

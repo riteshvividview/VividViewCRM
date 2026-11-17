@@ -8,6 +8,15 @@ import { createClient } from "@/lib/supabase/client";
 import { TaskDetailModal } from "../components/task-detail-modal";
 import { QuickAddTask } from "../components/quick-add-task";
 import type { Task, TaskMember, TaskTeam, TaskProjectListItem, TaskType } from "../types";
+import { readCache, writeCache } from "../lib/cache";
+import { publishLists } from "../lib/shared-lists";
+
+/** Everything besides the tasks, loaded in one request (/api/tasks/bootstrap). */
+interface Bootstrap {
+  members: TaskMember[]; teams: TaskTeam[]; projects: TaskProjectListItem[]; types: TaskType[];
+  settings: { read_only: boolean; delete_rule: "creator" | "leads" };
+  can_manage_teams?: boolean;
+}
 
 /** An open task of the current user that is overdue or due today / tomorrow. */
 export interface TaskReminder { id: string; title: string; due_date: string; priority: string; days: number }
@@ -54,7 +63,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went
 
 export function TasksProvider({ children }: { children: ReactNode }) {
   const {
-    tasks, loading, fetchTasks, addTask, updateTask, deleteTask, refreshTask, currentUserId,
+    tasks, loading, fetchTasks, refreshTaskIds, addTask, updateTask, deleteTask, refreshTask, currentUserId,
     addAssignees, removeAssignee,
   } = useTasks();
   const shellProfile = useShellProfile();
@@ -69,7 +78,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<TaskMember[]>([]);
   const [teams, setTeams] = useState<TaskTeam[]>([]);
   const refreshTeams = useCallback(async () => {
-    try { const r = await fetch("/api/tasks/teams"); if (r.ok) setTeams((await r.json()).teams ?? []); } catch {}
+    try {
+      const r = await fetch("/api/tasks/teams");
+      if (r.ok) { const j = await r.json(); setTeams(j.teams ?? []); publishLists({ teams: j.teams ?? [], can_manage_teams: !!j.can_manage }); }
+    } catch {}
   }, []);
   const [projects, setProjects] = useState<TaskProjectListItem[]>([]);
   const [types, setTypes] = useState<TaskType[]>([]);
@@ -91,36 +103,63 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/tasks/projects");
       const json = await res.json();
-      if (res.ok) setProjects(json.projects ?? []);
+      if (res.ok) { setProjects(json.projects ?? []); publishLists({ projects: json.projects ?? [] }); }
     } catch {}
   }, []);
 
+  // Members, teams, brands, types and settings: one request, shown from the cache first.
+  const applyBootstrap = useCallback((b: Bootstrap) => {
+    setMembers(b.members ?? []);
+    setTeams(b.teams ?? []);
+    setProjects(b.projects ?? []);
+    setTypes(b.types ?? []);
+    setReadOnly(!!b.settings?.read_only);
+    if (b.settings?.delete_rule) setDeleteRule(b.settings.delete_rule);
+    publishLists({ projects: b.projects, teams: b.teams, can_manage_teams: b.can_manage_teams });
+  }, []);
+  const loadBootstrap = useCallback(async () => {
+    try {
+      const r = await fetch("/api/tasks/bootstrap");
+      if (!r.ok) return;
+      const b = (await r.json()) as Bootstrap;
+      applyBootstrap(b);
+      writeCache(currentUserId, "bootstrap", b);
+    } catch {}
+  }, [applyBootstrap, currentUserId]);
+
   useEffect(() => {
-    fetch("/api/tasks/members").then((r) => r.json()).then((json) => {
-      setMembers(json.members ?? []);
-    }).catch(() => {});
-    refreshTeams();
-    fetch("/api/tasks/settings").then((r) => r.json()).then((json) => { setReadOnly(!!json.read_only); if (json.delete_rule) setDeleteRule(json.delete_rule); }).catch(() => {});
+    const cached = readCache<Bootstrap>(currentUserId, "bootstrap");
+    if (cached) applyBootstrap(cached);
+    loadBootstrap();
     // Deadline reminders (also saved to the notification bell, once per task per day).
     fetch("/api/tasks/reminders", { method: "POST" }).then((r) => r.json()).then((json) => setReminders(json.reminders ?? [])).catch(() => {});
-    refreshProjects();
-    refreshTypes();
-  }, [refreshProjects, refreshTypes, refreshTeams]);
+  }, [applyBootstrap, loadBootstrap, currentUserId]);
 
-  // Live sync: the server pings this channel after every change anyone makes, and
-  // the task list (and brands) are re-read quietly, so nobody has to refresh.
+  // Live sync: the server pings this channel after every change anyone makes.
+  // A ping that names tasks re-reads only those; one without details re-reads
+  // everything (team, brand or type changes). Pings arriving close together are merged.
   useEffect(() => {
     if (!workspaceId) return;
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending = new Set<string>();
+    let full = false;
     const channel = supabase.channel(`tasks-sync:${workspaceId}`)
-      .on("broadcast", { event: "changed" }, () => {
+      .on("broadcast", { event: "changed" }, ({ payload }) => {
+        const ids = (payload as { tasks?: string[] } | undefined)?.tasks;
+        if (!Array.isArray(ids)) full = true;
+        else ids.forEach((id) => pending.add(id));
         clearTimeout(timer);
-        timer = setTimeout(() => { fetchTasks(true); refreshProjects(); refreshTypes(); refreshTeams(); }, 300);
+        timer = setTimeout(() => {
+          const ids = [...pending];
+          pending = new Set();
+          if (full || ids.length > 40) { full = false; fetchTasks(true); loadBootstrap(); }
+          else if (ids.length) refreshTaskIds(ids);
+        }, 300);
       })
       .subscribe();
     return () => { clearTimeout(timer); supabase.removeChannel(channel); };
-  }, [workspaceId, fetchTasks, refreshProjects, refreshTypes, refreshTeams]);
+  }, [workspaceId, fetchTasks, refreshTaskIds, loadBootstrap]);
 
   // Deep link: /dashboard/actions/...?task=<id> opens that task once tasks are loaded.
   useEffect(() => {

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const r = await loadTask(id);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(r.ctx.workspaceId);
+  syncWorkspace(r.ctx.workspaceId, () => ({ tasks: [id] }));
   const isJson = (request.headers.get("content-type") ?? "").includes("application/json");
 
   if (isJson) {
@@ -167,7 +167,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const r = await loadTask(id);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(r.ctx.workspaceId);
+  syncWorkspace(r.ctx.workspaceId, () => ({ tasks: [id] }));
   const attId = request.nextUrl.searchParams.get("attachment_id") ?? "";
   const { data: att } = await r.admin.from("task_attachments").select("id, kind, storage, file_path, uploaded_by").eq("id", attId).eq("task_id", id).maybeSingle();
   if (!att) return err("File not found", 404);

@@ -6,25 +6,27 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, Plus } from "@/components/shared/fa-icons";
 import { cn } from "@/lib/utils";
 import { useShellProfile } from "@/lib/supabase/profile-context";
+import { LISTS_EVENT, currentLists, type SharedLists } from "@/modules/tasks/lib/shared-lists";
 
-interface ProjectLink { id: string; name: string; color: string | null }
+interface ProjectLink { id: string; name: string; color?: string | null }
 
 /** "Brands" list in the main sidebar of the Tasks app. Only the CEO and team leads can add one. */
 export function TaskProjectsNav({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
-  const [projects, setProjects] = useState<ProjectLink[]>([]);
+  const [projects, setProjects] = useState<ProjectLink[]>(() => currentLists().projects ?? []);
   const [open, setOpen] = useState(true);
   const role = useShellProfile()?.role;
   const canCreate = role === "super_admin" || role === "team_lead";
 
-  // Refetch on navigation so new / renamed / archived projects show up.
+  // The Tasks app shares its brand list (kept live); fetch only if it never arrives.
   useEffect(() => {
-    fetch("/api/tasks/projects").then((r) => (r.ok ? r.json() : { projects: [] })).then((j) => setProjects(j.projects ?? [])).catch(() => {});
-  }, [pathname]);
-  useEffect(() => {
-    const reload = () => { fetch("/api/tasks/projects").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setProjects(j.projects ?? []); }).catch(() => {}); };
-    window.addEventListener("tasks:changed", reload);
-    return () => window.removeEventListener("tasks:changed", reload);
+    let heard = !!currentLists().projects;
+    const on = (e: Event) => { const l = (e as CustomEvent<SharedLists>).detail; if (l.projects) { heard = true; setProjects(l.projects); } };
+    window.addEventListener(LISTS_EVENT, on);
+    const t = setTimeout(() => {
+      if (!heard) fetch("/api/tasks/projects").then((r) => (r.ok ? r.json() : { projects: [] })).then((j) => setProjects(j.projects ?? [])).catch(() => {});
+    }, 1500);
+    return () => { clearTimeout(t); window.removeEventListener(LISTS_EVENT, on); };
   }, []);
 
   if (collapsed) return null;

@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(r.ctx.workspaceId);
+  syncWorkspace(r.ctx.workspaceId, () => ({ tasks: [id] }));
   const { ctx, admin } = r;
   const body = await request.json().catch(() => ({}));
   const now = new Date();
@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(r.ctx.workspaceId);
+  syncWorkspace(r.ctx.workspaceId, () => ({ tasks: [id] }));
   const entryId = request.nextUrl.searchParams.get("entry_id") ?? "";
   const { data: entry } = await r.admin.from("task_time_entries").select("user_id").eq("id", entryId).eq("task_id", id).maybeSingle();
   if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 });

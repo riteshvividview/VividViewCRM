@@ -43,9 +43,16 @@ export function useNotifications(onNew?: (fresh: Notification[]) => void) {
     if (!userId) return;
     load();
     const supabase = createClient();
-    const channel = supabase.channel(`user-notify:${userId}`).on("broadcast", { event: "new" }, () => { load(); }).subscribe();
-    // Safety net if the socket drops.
-    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+    // Live: the server pings this channel. The slow check runs only while that connection is down.
+    let live = false, connectedBefore = false;
+    const channel = supabase.channel(`user-notify:${userId}`).on("broadcast", { event: "new" }, () => { load(); })
+      .subscribe((status) => {
+        const was = live;
+        live = status === "SUBSCRIBED";
+        // After a reconnection, catch up on anything missed while it was down.
+        if (live && !was) { if (connectedBefore) load(); connectedBefore = true; }
+      });
+    const t = setInterval(() => { if (!live && document.visibilityState === "visible") load(); }, 60000);
     return () => { clearInterval(t); supabase.removeChannel(channel); };
   }, [userId, load]);
 

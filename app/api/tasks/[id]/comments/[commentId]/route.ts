@@ -8,7 +8,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id, commentId } = await params;
   const admin = adminClient();

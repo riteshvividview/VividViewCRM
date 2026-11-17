@@ -14,13 +14,13 @@ interface NotifyParams {
  * only "something changed" pings; receivers re-read their data through the API,
  * so nothing private travels over the channel.
  */
-export async function broadcast(messages: { topic: string; event: string }[]): Promise<void> {
+export async function broadcast(messages: { topic: string; event: string; payload?: Record<string, unknown> }[]): Promise<void> {
   if (!messages.length) return;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ messages: messages.map((m) => ({ topic: m.topic, event: m.event, payload: {} })) }),
+    body: JSON.stringify({ messages: messages.map((m) => ({ topic: m.topic, event: m.event, payload: m.payload ?? {} })) }),
   }).catch(() => {});
 }
 

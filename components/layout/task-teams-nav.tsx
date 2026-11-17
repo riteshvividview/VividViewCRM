@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, Plus } from "@/components/shared/fa-icons";
+import { LISTS_EVENT, currentLists, type SharedLists } from "@/modules/tasks/lib/shared-lists";
 import { cn } from "@/lib/utils";
 
 interface TeamLink { id: string; name: string; color: string | null; member_ids: string[] }
@@ -14,18 +15,23 @@ interface TeamLink { id: string; name: string; color: string | null; member_ids:
  */
 export function TaskTeamsNav({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
-  const [teams, setTeams] = useState<TeamLink[]>([]);
-  const [canManage, setCanManage] = useState(false);
+  const [teams, setTeams] = useState<TeamLink[]>(() => (currentLists().teams ?? []) as TeamLink[]);
+  const [canManage, setCanManage] = useState(() => !!currentLists().can_manage_teams);
   const [open, setOpen] = useState(true);
 
+  // The Tasks app shares its team list (kept live); fetch only if it never arrives.
   useEffect(() => {
-    const load = () => {
-      fetch("/api/tasks/teams").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { setTeams(j.teams ?? []); setCanManage(!!j.can_manage); } }).catch(() => {});
+    let heard = !!currentLists().teams;
+    const on = (e: Event) => {
+      const l = (e as CustomEvent<SharedLists>).detail;
+      if (l.teams) { heard = true; setTeams(l.teams as TeamLink[]); setCanManage(!!l.can_manage_teams); }
     };
-    load();
-    window.addEventListener("tasks:changed", load);
-    return () => window.removeEventListener("tasks:changed", load);
-  }, [pathname]);
+    window.addEventListener(LISTS_EVENT, on);
+    const t = setTimeout(() => {
+      if (!heard) fetch("/api/tasks/teams").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { setTeams(j.teams ?? []); setCanManage(!!j.can_manage); } }).catch(() => {});
+    }, 1500);
+    return () => { clearTimeout(t); window.removeEventListener(LISTS_EVENT, on); };
+  }, []);
 
   if (collapsed) return null;
   return (

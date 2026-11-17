@@ -72,8 +72,19 @@ export const syncChannel = (workspaceId: string) => `tasks-sync:${workspaceId}`;
  * everyone in the workspace gets a ping and re-reads their tasks, so boards,
  * planners and open tasks stay in step without a page refresh.
  */
-export function syncWorkspace(workspaceId: string) {
-  after(() => broadcast([{ topic: syncChannel(workspaceId), event: "changed" }]));
+/**
+ * What changed, so open screens re-read only that:
+ * - { tasks: [ids] }  just these tasks (they are re-fetched by id; gone or hidden ones drop out)
+ * - { tasks: [] }     nothing in the task list (e.g. a time block moved)
+ * - nothing           anything may have changed: re-read tasks and the reference data
+ * A function is read after the response is sent, so it can name a task created during the request.
+ */
+export type SyncChange = { tasks?: string[] };
+export function syncWorkspace(workspaceId: string, change?: SyncChange | (() => SyncChange)) {
+  after(() => {
+    const c = typeof change === "function" ? change() : change;
+    return broadcast([{ topic: syncChannel(workspaceId), event: "changed", payload: c?.tasks ? { tasks: c.tasks.slice(0, 50) } : {} }]);
+  });
 }
 
 export function readOnlyResponse() {

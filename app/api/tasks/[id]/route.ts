@@ -38,10 +38,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let nextTask: RawTask | null = null;
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  // This task, plus the next occurrence when completing a repeating task creates one.
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id, ...(nextTask ? [nextTask.id as string] : [])] }));
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -221,7 +223,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   // ── Recurring: completing a repeating task schedules the next occurrence ────
-  let nextTask: RawTask | null = null;
+  nextTask = null;
   const pattern = (task.recurring_pattern ?? null) as RecurringPattern | null;
   if (newStatus === "done" && existing.status !== "done" && pattern) {
     const anchor = (task.planned_date ?? task.due_date ?? new Date().toISOString().slice(0, 10)) as string;
@@ -269,7 +271,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
   const admin = adminClient();

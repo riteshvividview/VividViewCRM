@@ -137,30 +137,59 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
   const [typing, setTyping] = useState<string | null>(null);
   const lastTypingSent = useRef(0);
 
-  const load = useCallback(async () => {
-    const [c, a] = await Promise.all([
-      fetch(`/api/tasks/${taskId}/comments`).then((r) => r.json()).catch(() => ({})),
-      fetch(`/api/tasks/${taskId}/activity`).then((r) => r.json()).catch(() => ({})),
-    ]);
-    setMessages(c.comments ?? []);
-    setActivity(a.activity ?? []);
-    setProfiles(a.profiles ?? {});
-    setLoadingChat(false);
+  // Newest message time we have, so updates fetch only what came after it.
+  const lastAt = useRef<string | null>(null);
+  useEffect(() => { lastAt.current = messages.length ? messages[messages.length - 1].created_at : null; }, [messages]);
+
+  /** Adds messages, skipping ones already shown, keeping the order. */
+  const merge = useCallback((fresh: ChatMessage[]) => {
+    if (!fresh.length) return;
+    setMessages((m) => {
+      const have = new Set(m.map((x) => x.id));
+      const add = fresh.filter((x) => !have.has(x.id));
+      return add.length ? [...m, ...add].sort((a, b) => a.created_at.localeCompare(b.created_at)) : m;
+    });
+  }, []);
+
+  const loadActivity = useCallback(async () => {
+    const a = await fetch(`/api/tasks/${taskId}/activity`).then((r) => r.json()).catch(() => ({}));
+    if (a.activity) { setActivity(a.activity); setProfiles(a.profiles ?? {}); }
   }, [taskId]);
 
-  // A different task starts with the loader again.
-  useEffect(() => { setLoadingChat(true); setMessages([]); setActivity([]); }, [taskId]);
+  // Opening a task: the whole conversation and its activity, once.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingChat(true); setMessages([]); setActivity([]);
+    Promise.all([
+      fetch(`/api/tasks/${taskId}/comments`).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/tasks/${taskId}/activity`).then((r) => r.json()).catch(() => ({})),
+    ]).then(([c, a]) => {
+      if (cancelled) return;
+      setMessages(c.comments ?? []);
+      setActivity(a.activity ?? []);
+      setProfiles(a.profiles ?? {});
+      setLoadingChat(false);
+    });
+    return () => { cancelled = true; };
+  }, [taskId]);
 
-  useEffect(() => { load(); }, [load, refreshKey]);
+  // The task changed (status, dates, files…): only its activity needs reading again.
+  const firstKey = useRef(true);
+  useEffect(() => {
+    if (firstKey.current) { firstKey.current = false; return; }
+    loadActivity();
+  }, [refreshKey, loadActivity]);
   // While this chat is on screen, its messages need no popup.
   useEffect(() => {
     document.body.dataset.openTaskChat = taskId;
     return () => { if (document.body.dataset.openTaskChat === taskId) delete document.body.dataset.openTaskChat; };
   }, [taskId]);
 
+  /** Only messages newer than the last one shown. */
   const loadMessages = useCallback(() => {
-    fetch(`/api/tasks/${taskId}/comments`).then((r) => r.json()).then((c) => { if (c.comments) setMessages(c.comments); }).catch(() => {});
-  }, [taskId]);
+    const after = lastAt.current ? `?after=${encodeURIComponent(lastAt.current)}` : "";
+    fetch(`/api/tasks/${taskId}/comments${after}`).then((r) => r.json()).then((c) => { if (c.comments) merge(c.comments); }).catch(() => {});
+  }, [taskId, merge]);
 
   // Real time: everyone with the task open shares a WebSocket channel. A sender pings it
   // after saving, and the others re-read the messages (the ping itself carries no content).
@@ -176,10 +205,15 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
       })
       .subscribe((status) => setLive(status === "SUBSCRIBED"));
     channelRef.current = channel;
-    // Safety net if the socket drops: a slow refresh while the tab is visible.
-    const t = setInterval(() => { if (document.visibilityState === "visible") loadMessages(); }, 45000);
-    return () => { clearInterval(t); clearTimeout(typingTimer); channelRef.current = null; setLive(false); supabase.removeChannel(channel); };
+    return () => { clearTimeout(typingTimer); channelRef.current = null; setLive(false); supabase.removeChannel(channel); };
   }, [taskId, loadMessages]);
+
+  // Safety net only while the live connection is down: a slow check for new messages.
+  useEffect(() => {
+    if (live) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") loadMessages(); }, 45000);
+    return () => clearInterval(t);
+  }, [live, loadMessages]);
 
   const items = useMemo<Item[]>(() => [
     ...messages.map((msg) => ({ kind: "message" as const, at: msg.created_at, msg })),
@@ -209,7 +243,7 @@ export function TaskChat({ taskId, members, currentUserId, refreshKey, readOnly 
     const json = await res.json().catch(() => ({}));
     setSending(false);
     if (!res.ok) { toast.error(json.error ?? "Could not send"); return; }
-    setMessages((m) => [...m, json.comment]);
+    merge([json.comment]);
     channelRef.current?.send({ type: "broadcast", event: "message", payload: {} });
     setText("");
     setFiles([]);

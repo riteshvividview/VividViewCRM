@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(params.get("limit")) || 500, 1000);
 
   let query = admin.from("tasks").select(TASK_SELECT).eq("workspace_id", ctx.workspaceId);
+  const ids = (params.get("ids") ?? "").split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)).slice(0, 50);
+  if (ids.length) query = query.in("id", ids);
 
   if (status) query = query.in("status", status.split(",").map((s) => s.trim()).filter(Boolean));
   if (params.get("include_done") === "0") query = query.neq("status", "done");
@@ -69,7 +71,8 @@ export async function POST(request: NextRequest) {
   const ctx = await getAuthContext();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (ctx.readOnly) return readOnlyResponse();
-  syncWorkspace(ctx.workspaceId);
+  let createdId: string | null = null;
+  syncWorkspace(ctx.workspaceId, () => (createdId ? { tasks: [createdId] } : {}));
 
   const body = await request.json().catch(() => ({}));
   const title = (body.title ?? "").trim();
@@ -170,6 +173,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: task, error } = await admin.from("tasks").insert(insertData).select(TASK_SELECT).single();
+  if (task) createdId = task.id as string;
   if (error) return NextResponse.json({ error: /team_id/.test(error.message) ? TEAMS_MIGRATION_HINT : error.message }, { status: 400 });
 
   await Promise.all([
