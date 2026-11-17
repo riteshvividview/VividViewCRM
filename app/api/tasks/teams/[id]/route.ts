@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
+import { hideTrashed, trashReady } from "../../_lib/trash";
 import { TEAM_SELECT, serializeTeam, setTeamMembers, type TeamRow } from "../../_lib/teams";
 
 type Params = { params: Promise<{ id: string }> };
@@ -74,7 +75,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   const r = await load(id);
   if ("error" in r) return r.error;
   // Deleting a team would make its private tasks visible to everyone, so open tasks must be moved first.
-  const { count } = await r.admin.from("tasks").select("id", { count: "exact", head: true }).eq("team_id", id).neq("status", "done");
+  const { count } = await hideTrashed(r.admin.from("tasks").select("id", { count: "exact", head: true }).eq("team_id", id).neq("status", "done"), await trashReady(r.admin));
   if (count) {
     return NextResponse.json({ error: `${r.team.name} still has ${count} open task${count === 1 ? "" : "s"}. Move ${count === 1 ? "it" : "them"} to another team or complete ${count === 1 ? "it" : "them"} first.` }, { status: 400 });
   }

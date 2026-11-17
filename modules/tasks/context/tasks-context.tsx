@@ -158,8 +158,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         timer = setTimeout(() => {
           const ids = [...pending];
           pending = new Set();
-          if (full || ids.length > 40) { full = false; fetchTasks(true); loadBootstrap(); }
+          const all = full || ids.length > 40;
+          if (all) { full = false; fetchTasks(true); loadBootstrap(); }
           else if (ids.length) refreshTaskIds(ids);
+          window.dispatchEvent(new CustomEvent("tasks:sync", { detail: all ? { full: true } : { ids } }));
         }, 300);
       })
       .subscribe();

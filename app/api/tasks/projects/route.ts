@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
+import { hideTrashed, trashReady } from "../_lib/trash";
 import { ensureProjectBoard } from "../_lib/board";
 
 const PROJECT_SELECT = "id, name, description, status, color, icon, team_id, archived_at, owner_id, created_at, key";
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
   const ids = (data ?? []).map((p) => p.id);
   const counts = new Map<string, { open: number; total: number }>();
   if (ids.length) {
-    const { data: rows } = await admin.from("tasks").select("project_id, status").in("project_id", ids);
+    const { data: rows } = await hideTrashed(admin.from("tasks").select("project_id, status").in("project_id", ids), await trashReady(admin));
     for (const r of rows ?? []) {
       const c = counts.get(r.project_id) ?? { open: 0, total: 0 };
       c.total++;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loadProject } from "../../_lib";
+import { hideTrashed, trashReady } from "../../../_lib/trash";
 import { signedUrls, type FileStore } from "../../../_lib/files";
 
 /** Brand archive: every brief and main file of the brand's tasks, newest first, with download links. */
@@ -9,8 +10,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const r = await loadProject(id);
   if ("error" in r) return r.error;
 
-  const { data: tasks } = await r.admin.from("tasks").select("id, title, number, status, created_at, completed_at")
-    .eq("project_id", id).eq("workspace_id", r.ctx.workspaceId);
+  const { data: tasks } = await hideTrashed(r.admin.from("tasks").select("id, title, number, status, created_at, completed_at")
+    .eq("project_id", id).eq("workspace_id", r.ctx.workspaceId), await trashReady(r.admin));
   const taskById = new Map((tasks ?? []).map((t) => [t.id, t]));
   if (!taskById.size) return NextResponse.json({ files: [] });
 

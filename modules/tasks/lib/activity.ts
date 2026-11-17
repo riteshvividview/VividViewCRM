@@ -98,6 +98,8 @@ export function formatActivity(entry: TaskActivityEntry, profiles: Record<string
       if (kind === "main") return `${actor} submitted the main file ${files}`.trim();
       return `${actor} added ${kind === "brief" ? "a brief file" : kind === "reference" ? "a reference" : "a file"}${files ? `: ${files}` : ""}`;
     }
+    case "restored":
+      return `${actor} restored the task from the trash`;
     case "files_moved": {
       const n = Number(entry.metadata?.count ?? 0);
       return `${actor} moved ${n} file${n === 1 ? "" : "s"} to the new brand / team folder`;

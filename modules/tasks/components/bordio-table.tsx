@@ -26,7 +26,10 @@ interface Props {
   onOpen: (task: Task) => void;
   onCreate: () => void;
   selectedId?: string | null;
+  /** A page with its own task list (Brand page) pages its own older completed tasks. */
+  olderClosed?: OlderClosed;
 }
+interface OlderClosed { has: boolean; load: () => Promise<void> }
 
 // ── Columns: widths can be dragged, columns switched on and off; saved per browser ──
 type ColId = "title" | "status" | "type" | "assignee" | "planned" | "deadline" | "priority" | "brand" | "team";
@@ -59,7 +62,7 @@ const NOT_YOURS = "Only the people working on this task can change it.";
 const fmtDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
 
 /** Bordio table view: Open tasks / Closed tasks, every field editable in place. */
-export function BordioTable({ tasks, columns, onOpen, onCreate, selectedId }: Props) {
+export function BordioTable({ tasks, columns, onOpen, onCreate, selectedId, olderClosed }: Props) {
   const [layout, setLayout] = useState<Layout>({ widths: {}, hidden: DEFAULT_HIDDEN });
   useEffect(() => { setLayout(loadLayout()); }, []);
   const update = useCallback((fn: (l: Layout) => Layout) => setLayout((l) => { const n = fn(l); saveLayout(n); return n; }), []);
@@ -104,14 +107,16 @@ export function BordioTable({ tasks, columns, onOpen, onCreate, selectedId }: Pr
   return (
     <div className="overflow-x-auto overflow-y-hidden pb-1">
       <Group title="Open tasks" tasks={open} onCreate={onCreate} {...shared} />
-      <Group title="Closed tasks" tasks={closed} defaultOpen={closed.length <= 50} {...shared} footer={<OlderClosedButton />} />
+      <Group title="Closed tasks" tasks={closed} defaultOpen={closed.length <= 50} {...shared} footer={<OlderClosedButton override={olderClosed} />} />
     </div>
   );
 }
 
 /** Completed tasks older than ~60 days load only when asked for. */
-function OlderClosedButton() {
-  const { hasOlderClosed, loadOlderClosed } = useTasksContext();
+function OlderClosedButton({ override }: { override?: OlderClosed }) {
+  const ctx = useTasksContext();
+  const hasOlderClosed = override ? override.has : ctx.hasOlderClosed;
+  const loadOlderClosed = override ? override.load : ctx.loadOlderClosed;
   const [busy, setBusy] = useState(false);
   if (!hasOlderClosed) return null;
   return (

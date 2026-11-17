@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminClient, getAuthContext } from "../_lib/helpers";
 import { notifyUsers } from "../_lib/notify";
 import { purgeExpiredFiles } from "../_lib/files";
+import { hideTrashed, purgeExpiredTrash, trashReady } from "../_lib/trash";
 import { getTaskSettings, purgeOldNotifications } from "../_lib/settings";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -22,7 +23,7 @@ export async function POST() {
 
   const { data: mine } = await admin.from("task_assignees").select("task_id").eq("user_id", ctx.userId);
   const ids = (mine ?? []).map((m) => m.task_id);
-  let q = admin.from("tasks").select("id, title, due_date, priority")
+  let q = hideTrashed(admin.from("tasks").select("id, title, due_date, priority"), await trashReady(admin))
     .eq("workspace_id", ctx.workspaceId).neq("status", "done").not("due_date", "is", null).lte("due_date", tomorrow);
   q = ids.length ? q.or(`assignee_id.eq.${ctx.userId},id.in.(${ids.join(",")})`) : q.eq("assignee_id", ctx.userId);
   const { data: due } = await q.order("due_date").limit(100);
@@ -46,6 +47,8 @@ export async function POST() {
   // Automatic cleanup, when the CEO has it switched on.
   const settings = await getTaskSettings(admin, ctx.workspaceId);
   if (settings.retention_enabled) await purgeExpiredFiles(admin, ctx.workspaceId, settings.retention_days).catch(() => 0);
+  // Tasks in the trash longer than the CEO's setting are removed for good.
+  await purgeExpiredTrash(admin, ctx.workspaceId, settings.trash_days).catch(() => 0);
   await purgeOldNotifications(admin, ctx.workspaceId, settings.notif_read_days, settings.notif_unread_days).catch(() => 0);
   return NextResponse.json({ reminders });
 }

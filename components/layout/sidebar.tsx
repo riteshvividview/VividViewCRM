@@ -11,7 +11,7 @@ import {
   Clock, CalendarOff, Banknote, LayoutDashboard, Receipt, FilePlus,
   LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
   Star, Award, Briefcase, ClipboardCheck, FolderKanban, Tag,
-  HardDrive,
+  HardDrive, Trash2,
 } from "@/components/shared/fa-icons";
 import { APPS, getAppForPath } from "@/lib/rbac/modules";
 import { AppSwitcher } from "./app-switcher";
@@ -34,7 +34,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Package, FileText, BarChart3, Puzzle, Settings2, Settings, Home,
   ShieldCheck, UserRound, Clock, CalendarOff, Banknote, LayoutDashboard,
   Receipt, FilePlus, LayoutGrid, Laptop, Network, HandCoins, LifeBuoy, LogOut,
-  Star, Award, Briefcase, ClipboardCheck, FolderKanban, Tag, HardDrive,
+  Star, Award, Briefcase, ClipboardCheck, FolderKanban, Tag, HardDrive, Trash2,
 };
 
 interface SidebarProps {

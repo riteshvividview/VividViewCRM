@@ -79,15 +79,49 @@ export function ProjectView({ projectId }: { projectId: string }) {
   // The Brands tab shows every task of the brand, including other teams' tasks (view only).
   const [brandTasks, setBrandTasks] = useState<Task[] | null>(null);
   const [teamFilter, setTeamFilter] = useState("all");
+  // Open tasks plus the last 60 days of completed ones; older ones on request.
+  const [olderFrom, setOlderFrom] = useState(() => new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10));
+  const [brandHasOlder, setBrandHasOlder] = useState(false);
+  const base = `/api/tasks?project_id=${projectId}&scope=brand`;
   const loadBrandTasks = useCallback(async () => {
-    const res = await fetch(`/api/tasks?project_id=${projectId}&scope=brand&limit=1000`);
-    if (res.ok) setBrandTasks((await res.json()).items ?? []);
-  }, [projectId]);
+    const res = await fetch(`${base}&limit=1000&done_since=${olderFrom}`);
+    if (!res.ok) return;
+    const json = await res.json();
+    setBrandTasks(json.items ?? []);
+    setBrandHasOlder(!!json.older_closed);
+  }, [base, olderFrom]);
+  useEffect(() => { loadBrandTasks(); }, [loadBrandTasks]);
+
+  // Live: re-read only the tasks someone changed (or everything after a big change).
   useEffect(() => {
-    loadBrandTasks();
-    window.addEventListener("tasks:changed", loadBrandTasks);
-    return () => window.removeEventListener("tasks:changed", loadBrandTasks);
-  }, [loadBrandTasks]);
+    const onSync = async (e: Event) => {
+      const d = (e as CustomEvent<{ ids?: string[]; full?: boolean }>).detail;
+      if (d?.full || !d?.ids?.length) { loadBrandTasks(); return; }
+      const res = await fetch(`${base}&ids=${d.ids.join(",")}&limit=50`);
+      if (!res.ok) return;
+      const items: Task[] = (await res.json()).items ?? [];
+      const fresh = new Map(items.map((t) => [t.id, t]));
+      setBrandTasks((prev) => {
+        if (!prev) return prev;
+        const kept = prev.filter((t) => !d.ids!.includes(t.id) || fresh.has(t.id)).map((t) => fresh.get(t.id) ?? t);
+        return [...kept, ...items.filter((t) => !prev.some((p) => p.id === t.id))];
+      });
+    };
+    window.addEventListener("tasks:sync", onSync);
+    return () => window.removeEventListener("tasks:sync", onSync);
+  }, [base, loadBrandTasks]);
+
+  const loadOlderBrandClosed = useCallback(async () => {
+    const shown = (brandTasks ?? []).filter((t) => t.status === "done" && t.completed_at).map((t) => t.completed_at as string).sort();
+    const before = shown[0] ?? `${olderFrom}T00:00:00Z`;
+    const res = await fetch(`${base}&status=done&done_before=${encodeURIComponent(before)}&limit=50`);
+    if (!res.ok) return;
+    const items: Task[] = (await res.json()).items ?? [];
+    setBrandTasks((prev) => [...(prev ?? []), ...items.filter((t) => !(prev ?? []).some((p) => p.id === t.id))]);
+    setBrandHasOlder(items.length === 50);
+    const oldest = items.map((t) => t.completed_at as string).filter(Boolean).sort()[0];
+    if (oldest) setOlderFrom((f) => (oldest.slice(0, 10) < f ? oldest.slice(0, 10) : f));
+  }, [base, brandTasks, olderFrom]);
   // Prefer the user's own (live, optimistic) copy of a task when they have one.
   const projectTasks = useMemo(() => {
     const own = new Map(tasks.filter((t) => t.project_id === projectId).map((t) => [t.id, t]));
@@ -249,7 +283,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
             />
           )}
           {tool === "tasks" && view === "table" && (
-            <BordioTable tasks={visible} columns={columns} onOpen={openTask} onCreate={() => openQuickAdd({ project_id: projectId, board_column_id: firstCol?.id })} />
+            <BordioTable tasks={visible} columns={columns} olderClosed={{ has: brandHasOlder, load: loadOlderBrandClosed }} onOpen={openTask} onCreate={() => openQuickAdd({ project_id: projectId, board_column_id: firstCol?.id })} />
           )}
           {tool === "files" && <BrandFiles projectId={projectId} onOpenTask={(id) => { const t = tasks.find((x) => x.id === id); if (t) openTask(t); }} />}
           {tool === "calendar" && <WeeklyPlanner projectId={projectId} title={project.name} />}

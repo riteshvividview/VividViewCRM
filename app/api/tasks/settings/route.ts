@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, syncWorkspace } from "../_lib/helpers";
 import { getTaskSettings, purgeOldNotifications, saveTaskSettings, type TaskSettings } from "../_lib/settings";
+import { purgeExpiredTrash } from "../_lib/trash";
 import { countPurgeable, purgeExpiredFiles, r2Enabled } from "../_lib/files";
 
 const isCeo = (role: string) => role === "super_admin";
@@ -54,6 +55,11 @@ export async function PATCH(request: NextRequest) {
   }
   if (["full", "view", "hidden"].includes(body.hr_access)) patch.hr_access = body.hr_access;
   if (["creator", "leads"].includes(body.delete_rule)) patch.delete_rule = body.delete_rule;
+  if (body.trash_days !== undefined) {
+    const days = Math.round(Number(body.trash_days));
+    if (!Number.isFinite(days) || days < 1 || days > 365) return NextResponse.json({ error: "Keep deleted tasks between 1 and 365 days" }, { status: 400 });
+    patch.trash_days = days;
+  }
   for (const k of ["notif_read_days", "notif_unread_days"] as const) {
     if (body[k] === undefined) continue;
     const days = Math.round(Number(body[k]));
@@ -65,6 +71,7 @@ export async function PATCH(request: NextRequest) {
   const { data, error } = await saveTaskSettings(adminClient(), ctx.workspaceId, ctx.userId, patch);
   if (error) {
     const missing = /task_settings/.test(error.message) && /(does not exist|schema cache)/.test(error.message);
+    if (/trash_days/.test(error.message)) return NextResponse.json({ error: "The trash is not set up in the database yet. Run RUN-ME-49-task-trash.sql in Supabase first." }, { status: 400 });
     const notifColumns = /notif_(read|unread)_days/.test(error.message);
     return NextResponse.json({ error: notifColumns ? "Notification cleanup is not set up in the database yet. Run RUN-ME-47-notification-cleanup.sql in Supabase first." : missing ? "Settings table is missing. Run RUN-ME-43-task-settings.sql in Supabase first." : error.message }, { status: 400 });
   }
@@ -81,6 +88,7 @@ export async function POST(request: NextRequest) {
   const settings = await getTaskSettings(admin, ctx.workspaceId);
   const removed = await purgeExpiredFiles(admin, ctx.workspaceId, body.scope === "all" ? 0 : settings.retention_days);
   const notifications = await purgeOldNotifications(admin, ctx.workspaceId, settings.notif_read_days, settings.notif_unread_days).catch(() => 0);
+  await purgeExpiredTrash(admin, ctx.workspaceId, settings.trash_days).catch(() => 0);
   await saveTaskSettings(admin, ctx.workspaceId, ctx.userId, { last_cleanup_at: new Date().toISOString() });
   return NextResponse.json({ removed, notifications });
 }

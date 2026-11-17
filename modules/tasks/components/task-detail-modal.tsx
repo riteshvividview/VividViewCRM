@@ -196,7 +196,7 @@ export function TaskDetailModal(props: Props) {
                   {canDelete && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => { if (window.confirm("Delete this task and all its files? This cannot be undone.")) { onDelete(task.id); onClose(); } }}>
+                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => { if (window.confirm("Delete this task? It moves to the trash and can be restored for a limited time.")) { onDelete(task.id); onClose(); } }}>
                         <FontAwesomeIcon icon={faTrashCan} className="mr-2 h-3.5 w-3.5" />Delete task
                       </DropdownMenuItem>
                     </>

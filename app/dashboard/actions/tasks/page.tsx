@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faTableList, faTableColumns } from "@fortawesome/free-solid-svg-icons";
+import { faPlus, faTableList, faTableColumns, faCircleInfo } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import { useTasksContext } from "@/modules/tasks/context/tasks-context";
 import { BordioKanban, type KanbanColumn } from "@/modules/tasks/components/bordio-kanban";
@@ -15,7 +15,9 @@ const COLUMNS: KanbanColumn[] = (Object.keys(STATUS_CONFIG) as TaskStatus[]).map
 
 /** My work across all brands — table / kanban with filters. */
 export default function AllTasksPage() {
-  const { tasks, members, types, projects, currentUserId, openQuickAdd, openTask, updateTask } = useTasksContext();
+  const { tasks, members, types, projects, teams, isLead, currentUserId, openQuickAdd, openTask, updateTask } = useTasksContext();
+  // People outside every team only see tasks without a team and their own: say so, instead of an unexplained empty list.
+  const inNoTeam = !isLead && !!currentUserId && teams.length > 0 && !teams.some((t) => t.member_ids.includes(currentUserId));
   // Remembers Table or Kanban on this browser.
   const [view, setViewState] = useState<"table" | "kanban">("kanban");
   useEffect(() => { try { if (localStorage.getItem("vividview-tasks-view") === "table") setViewState("table"); } catch {} }, []);
@@ -49,6 +51,12 @@ export default function AllTasksPage() {
         <div className="ml-auto"><TaskFilters value={filters} onChange={setFilters} members={members} types={types} brands={projects} /></div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
+        {inNoTeam && (
+          <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+            <FontAwesomeIcon icon={faCircleInfo} className="h-3.5 w-3.5 shrink-0" />
+            You’re not in a team yet. Team tasks appear here once you’re added to a team.
+          </p>
+        )}
         {view === "kanban" ? (
           <BordioKanban
             columns={COLUMNS}

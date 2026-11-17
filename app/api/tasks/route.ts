@@ -5,6 +5,7 @@ import { TASK_LIST_SELECT, TASK_SELECT, attachRelations, relationFilters, shapeT
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "./_lib/board";
 import { RECURRING_PATTERNS } from "./_lib/recurrence";
 import { notifyUsers } from "./_lib/notify";
+import { hideTrashed, trashReady } from "./_lib/trash";
 import { TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canUseTeam, myTeamIds, taskEditable, taskVisible, teamMemberIds } from "./_lib/teams";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
   const plannedTo = params.get("planned_to");
   const limit = Math.min(Number(params.get("limit")) || 500, 1000);
 
-  let query = relationFilters(admin.from("tasks").select(TASK_LIST_SELECT).eq("workspace_id", ctx.workspaceId));
+  const trash = await trashReady(admin);
+  let query = hideTrashed(relationFilters(admin.from("tasks").select(TASK_LIST_SELECT).eq("workspace_id", ctx.workspaceId)), trash);
   const ids = (params.get("ids") ?? "").split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)).slice(0, 50);
   if (ids.length) query = query.in("id", ids);
 
@@ -69,7 +71,10 @@ export async function GET(request: NextRequest) {
     workspacePeople(admin, ctx.workspaceId),
     // With the default list: are there completed tasks older than the window?
     isTime(doneSince) && !status
-      ? admin.from("tasks").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspaceId).eq("status", "done").lt("completed_at", doneSince)
+      ? hideTrashed((() => {
+          const c = admin.from("tasks").select("id", { count: "exact", head: true }).eq("workspace_id", ctx.workspaceId).eq("status", "done").lt("completed_at", doneSince);
+          return projectId ? c.eq("project_id", projectId) : c;
+        })(), trash)
       : Promise.resolve({ count: null }),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

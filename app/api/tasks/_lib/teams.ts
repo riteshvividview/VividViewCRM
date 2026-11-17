@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hideTrashed, trashReady } from "./trash";
 import { isLead, type AuthContext } from "./helpers";
 
 /**
@@ -46,8 +47,8 @@ export function taskVisible(ctx: AuthContext, mine: Set<string>, task: VisibleTa
 
 /** Who a task belongs to, read once: team, brand, creator and assignees. */
 async function taskPeople(admin: SupabaseClient, taskId: string) {
-  const { data } = await admin.from("tasks")
-    .select("team_id, project_id, created_by, assignee_id, task_assignees(user_id)").eq("id", taskId).maybeSingle();
+  const { data } = await hideTrashed(admin.from("tasks")
+    .select("team_id, project_id, created_by, assignee_id, task_assignees(user_id)").eq("id", taskId), await trashReady(admin)).maybeSingle();
   if (!data) return null;
   return {
     teamId: (data.team_id as string | null) ?? null,

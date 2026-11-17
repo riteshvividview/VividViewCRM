@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 type HrAccess = "full" | "view" | "hidden";
 type DeleteRule = "creator" | "leads";
-interface Settings { retention_enabled: boolean; retention_days: number; last_cleanup_at: string | null; hr_access: HrAccess; delete_rule: DeleteRule; notif_read_days: number; notif_unread_days: number }
+interface Settings { retention_enabled: boolean; retention_days: number; last_cleanup_at: string | null; hr_access: HrAccess; delete_rule: DeleteRule; notif_read_days: number; notif_unread_days: number; trash_days: number }
 interface Amount { files: number; bytes: number }
 interface Payload { settings: Settings; storage: Record<string, Amount>; removed: number; cleanup: { due: Amount; all: Amount }; cloudflare: boolean }
 
@@ -210,6 +211,22 @@ export default function TaskSettingsPage() {
         <p className="mt-3 text-xs text-muted-foreground">When a task is deleted, its notifications are removed straight away and only the &quot;deleted a task&quot; notice is kept. &quot;Run cleanup now&quot; above also clears old notifications.</p>
       </Card>
 
+      <div id="trash" className="scroll-mt-4">
+        <Card icon={faTrashCan} title="Deleted tasks" hint="A deleted task goes to the trash with its files and chat. You can restore it until it is removed for good.">
+          <p className="mb-2 text-sm font-medium">Keep deleted tasks for</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {[7, 15, 30, 60].map((d) => (
+              <button key={d} type="button" onClick={() => d !== s.trash_days && save({ trash_days: d })}
+                className={cn("rounded-full border px-3.5 py-1.5 text-[13px] font-medium", s.trash_days === d ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+                {d} days
+              </button>
+            ))}
+            {![7, 15, 30, 60].includes(s.trash_days) && <span className="rounded-full border border-primary bg-primary px-3.5 py-1.5 text-[13px] font-medium text-primary-foreground">{s.trash_days} days</span>}
+            <Link href="/dashboard/actions/trash" className="ml-auto text-sm font-medium text-primary hover:underline">Open trash</Link>
+          </div>
+        </Card>
+      </div>
+
       <Card icon={faUserShield} title="HR access to Tasks" hint="Decide what people with the HR role can do in Task Management.">
         <Choice<HrAccess> value={s.hr_access} onChange={(v) => v !== s.hr_access && save({ hr_access: v })} options={[
           { value: "hidden", title: "No access", hint: "The Tasks app is not shown to HR at all.", icon: faEyeSlash },
@@ -218,7 +235,7 @@ export default function TaskSettingsPage() {
         ]} />
       </Card>
 
-      <Card icon={faTrashCan} title="Who can delete tasks" hint="Deleting a task also deletes all of its files, including the brief and main file.">
+      <Card icon={faTrashCan} title="Who can delete tasks" hint="A deleted task goes to the trash first; removing it for good also removes its files.">
         <Choice<DeleteRule> value={s.delete_rule} onChange={(v) => v !== s.delete_rule && save({ delete_rule: v })} options={[
           { value: "creator", title: "Creator and leads", hint: "The person who created the task, team leads and the CEO.", icon: faUserPen },
           { value: "leads", title: "Leads only", hint: "Only team leads and the CEO. Employees cannot delete tasks.", icon: faUserShield },

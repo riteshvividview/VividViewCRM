@@ -15,6 +15,8 @@ export interface TaskSettings {
   notif_read_days: number;
   /** Days an unread notification is kept. */
   notif_unread_days: number;
+  /** Days a deleted task stays in the trash before it is removed for good. */
+  trash_days: number;
 }
 
 export const DEFAULT_TASK_SETTINGS: TaskSettings = {
@@ -25,6 +27,7 @@ export const DEFAULT_TASK_SETTINGS: TaskSettings = {
   delete_rule: "creator",
   notif_read_days: 30,
   notif_unread_days: 90,
+  trash_days: 15,
 };
 
 // "*" rather than a column list, so settings still load before newer columns exist (migration 47).

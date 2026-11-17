@@ -7,6 +7,7 @@ import { getTaskSettings } from "../_lib/settings";
 import { NOT_YOURS_MESSAGE, TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canAccessTask, canEditTask, canReadTask, canUseTeam } from "../_lib/teams";
 import { TASK_SELECT, attachRelations, type RawTask } from "../_lib/serialize";
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "../_lib/board";
+import { hideTrashed, purgeTask, trashReady } from "../_lib/trash";
 import { RECURRING_PATTERNS, nextOccurrence, shiftBy, type RecurringPattern } from "../_lib/recurrence";
 
 const PATCHABLE_FIELDS = [
@@ -28,7 +29,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
   const admin = adminClient();
-  const { data: task, error } = await admin.from("tasks").select(TASK_SELECT)
+  const { data: task, error } = await hideTrashed(admin.from("tasks").select(TASK_SELECT), await trashReady(admin))
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   if (!task || !(await canReadTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
@@ -49,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json().catch(() => ({}));
   const admin = adminClient();
 
-  const { data: existing } = await admin.from("tasks").select("*")
+  const { data: existing } = await hideTrashed(admin.from("tasks").select("*"), await trashReady(admin))
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (!(await canEditTask(admin, ctx, id))) return NextResponse.json({ error: NOT_YOURS_MESSAGE, code: "not_yours" }, { status: 403 });
@@ -275,7 +276,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
   const { id } = await params;
   const admin = adminClient();
-  const { data: existing } = await admin.from("tasks").select("id, title, created_by, assignee_id")
+  const { data: existing } = await hideTrashed(admin.from("tasks").select("id, title, created_by, assignee_id"), await trashReady(admin))
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (!isLead(ctx.role)) {
@@ -290,24 +291,15 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     admin.from("profiles").select("full_name").eq("user_id", ctx.userId).maybeSingle(),
   ]);
 
-  // Remove stored attachment files (rows cascade with the task).
-  const { data: files } = await admin.from("task_attachments").select("file_path, storage").eq("task_id", id);
-  if (files?.length) await removeFiles(admin, files as { file_path: string | null; storage: FileStore }[]);
-
-  // Defensive cleanup — some older child tables may not have ON DELETE CASCADE.
-  await admin.from("task_mentions").delete().eq("task_id", id);
-  await Promise.all([
-    admin.from("task_assignees").delete().eq("task_id", id),
-    admin.from("task_watchers").delete().eq("task_id", id),
-    admin.from("task_label_assignments").delete().eq("task_id", id),
-    admin.from("task_comments").delete().eq("task_id", id),
-    admin.from("task_activity_log").delete().eq("task_id", id),
-    admin.from("task_time_entries").delete().eq("task_id", id),
-    admin.from("task_recurrence_rules").delete().eq("task_id", id),
-  ]);
-
-  const { error } = await admin.from("tasks").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  // Into the trash (the CEO can restore it for a while); removed at once only before migration 49.
+  if (await trashReady(admin)) {
+    const { error } = await admin.from("tasks").update({ deleted_at: new Date().toISOString(), deleted_by: ctx.userId }).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    await admin.from("task_time_blocks").delete().eq("task_id", id).gte("start_at", new Date().toISOString());
+  } else {
+    const err = await purgeTask(admin, id);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
+  }
 
   // Earlier notifications about the task would lead nowhere now.
   await admin.from("notifications").delete().eq("entity_id", id);
