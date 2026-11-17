@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { teamIdsOfTasks, teamsById, type TeamRef } from "./teams";
+import type { TeamRef } from "./teams";
 
 /** Columns selected for every task read, including embeddable project/board refs. */
 export const TASK_SELECT = `
@@ -10,7 +10,7 @@ export const TASK_SELECT = `
   created_by, workspace_id, created_at, updated_at,
   project_id, board_id, position, story_points, start_date,
   estimated_hours, actual_hours, started_at, completed_at,
-  planned_date, color, board_column_id, recurrence_parent_id, type_id, number,
+  planned_date, color, board_column_id, recurrence_parent_id, type_id, number, team_id,
   brief_note, reference_note, main_note,
   project:task_projects!project_id(id, name, color, key),
   type:task_types!type_id(id, name, color),
@@ -65,77 +65,66 @@ function toOne<T>(v: T | T[] | null | undefined): T | null {
 }
 
 /**
- * Attaches multi-assignees (task_assignees), labels (task_label_assignments)
- * and reporter (created_by) profile info to raw task rows. Required because
- * task_assignees.user_id / tasks.created_by / tasks.assignee_id have no FK to
- * profiles, so PostgREST cannot embed them — joined manually here instead.
+ * Everything a task row needs besides people's names, embedded in the same query:
+ * team, assignees, labels, the number of chat messages, and its files (kinds only).
+ * Queries that use it must also apply `relationFilters`.
+ */
+export const RELATIONS_SELECT = `
+  team:teams!team_id(id, name, color),
+  assignee_rows:task_assignees(user_id),
+  label_rows:task_label_assignments(task_labels(id, name, color)),
+  comment_total:task_comments(count),
+  file_rows:task_attachments(kind)
+`;
+/** A full task in one query (with `relationFilters`). */
+export const TASK_LIST_SELECT = `${TASK_SELECT}, ${RELATIONS_SELECT}`;
+
+/** Filters on the embedded parts: live messages only; task files only (no chat media, none cleaned up). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function relationFilters<Q extends { is: any; neq: any }>(q: Q): Q {
+  return q.is("task_comments.deleted_at", null).neq("task_attachments.kind", "chat").is("task_attachments.purged_at", null);
+}
+
+/** Names and photos of everyone in the workspace (small; read alongside the tasks, not after). */
+export async function workspacePeople(admin: SupabaseClient, workspaceId: string): Promise<Map<string, TaskMember>> {
+  const { data } = await admin.from("profiles").select("user_id, full_name, avatar_url").eq("workspace_id", workspaceId);
+  return new Map((data ?? []).map((p) => [p.user_id, { id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url }]));
+}
+
+/** Turns rows read with TASK_LIST_SELECT into the shape the app uses. */
+export function shapeTasks(rows: RawTask[], people: Map<string, TaskMember>): SerializedTask[] {
+  return rows.map((row) => {
+    const { assignee_rows, label_rows, comment_total, file_rows, team, ...t } = row;
+    const files = (file_rows ?? []) as { kind: string }[];
+    return {
+      ...t,
+      project: toOne(t.project),
+      type: toOne(t.type),
+      board: toOne(t.board),
+      team_id: t.team_id ?? null,
+      team: toOne(team) as TeamRef | null,
+      comment_count: (toOne(comment_total) as { count?: number } | null)?.count ?? 0,
+      attachment_count: files.length,
+      has_main_file: files.some((f) => f.kind === "main"),
+      assignees: ((assignee_rows ?? []) as { user_id: string }[]).map((a) => people.get(a.user_id)).filter(Boolean) as TaskMember[],
+      labels: ((label_rows ?? []) as { task_labels: TaskLabel | TaskLabel[] | null }[]).map((l) => toOne(l.task_labels)).filter(Boolean) as TaskLabel[],
+      reporter: t.created_by ? people.get(t.created_by) ?? null : null,
+    } as SerializedTask;
+  });
+}
+
+/**
+ * Adds assignees, labels, counts, files, team and the creator to task rows read
+ * with TASK_SELECT: one query for those parts and one for names, at the same time.
  */
 export async function attachRelations(admin: SupabaseClient, tasks: RawTask[]): Promise<SerializedTask[]> {
   if (tasks.length === 0) return [];
-  const taskIds = tasks.map((t) => t.id);
-
-  const [assigneesRes, labelsRes, commentsRes, attachmentsRes] = await Promise.all([
-    admin.from("task_assignees").select("task_id, user_id").in("task_id", taskIds),
-    admin.from("task_label_assignments").select("task_id, task_labels(id, name, color)").in("task_id", taskIds),
-    admin.from("task_comments").select("task_id").in("task_id", taskIds).is("deleted_at", null),
-    admin.from("task_attachments").select("task_id, kind").in("task_id", taskIds).neq("kind", "chat").is("purged_at", null),
+  const ids = tasks.map((t) => t.id);
+  const workspaceId = tasks[0].workspace_id as string;
+  const [{ data: rel }, people] = await Promise.all([
+    relationFilters(admin.from("tasks").select(`id, ${RELATIONS_SELECT}`).in("id", ids)),
+    workspacePeople(admin, workspaceId),
   ]);
-  const countBy = (rows: { task_id: string }[] | null) => {
-    const m = new Map<string, number>();
-    for (const r of rows ?? []) m.set(r.task_id, (m.get(r.task_id) ?? 0) + 1);
-    return m;
-  };
-  const teamByTask = await teamIdsOfTasks(admin, taskIds);
-  const teamRefs = await teamsById(admin, [...new Set(teamByTask.values())]);
-  const commentCounts = countBy(commentsRes.data);
-  const attachmentCounts = countBy(attachmentsRes.data);
-  const withMain = new Set((attachmentsRes.data ?? []).filter((a) => a.kind === "main").map((a) => a.task_id));
-
-  const userIds = new Set<string>();
-  for (const a of assigneesRes.data ?? []) userIds.add(a.user_id);
-  for (const t of tasks) {
-    if (t.created_by) userIds.add(t.created_by);
-    if (t.assignee_id) userIds.add(t.assignee_id);
-  }
-
-  const { data: profiles } = userIds.size > 0
-    ? await admin.from("profiles").select("user_id, full_name, avatar_url").in("user_id", Array.from(userIds))
-    : { data: [] as { user_id: string; full_name: string; avatar_url: string | null }[] };
-
-  const profileByUserId = new Map<string, TaskMember>(
-    (profiles ?? []).map((p) => [p.user_id, { id: p.user_id, full_name: p.full_name, avatar_url: p.avatar_url }])
-  );
-
-  const assigneesByTask = new Map<string, TaskMember[]>();
-  for (const a of assigneesRes.data ?? []) {
-    const member = profileByUserId.get(a.user_id);
-    if (!member) continue;
-    const list = assigneesByTask.get(a.task_id) ?? [];
-    list.push(member);
-    assigneesByTask.set(a.task_id, list);
-  }
-
-  const labelsByTask = new Map<string, TaskLabel[]>();
-  for (const l of (labelsRes.data ?? []) as Array<{ task_id: string; task_labels: TaskLabel | TaskLabel[] | null }>) {
-    const label = toOne(l.task_labels);
-    if (!label) continue;
-    const list = labelsByTask.get(l.task_id) ?? [];
-    list.push(label);
-    labelsByTask.set(l.task_id, list);
-  }
-
-  return tasks.map((t) => ({
-    ...t,
-    project: toOne(t.project),
-    type: toOne(t.type),
-    comment_count: commentCounts.get(t.id) ?? 0,
-    attachment_count: attachmentCounts.get(t.id) ?? 0,
-    has_main_file: withMain.has(t.id),
-    team_id: teamByTask.get(t.id) ?? null,
-    team: teamRefs.get(teamByTask.get(t.id) ?? "") ?? null,
-    board: toOne(t.board),
-    assignees: assigneesByTask.get(t.id) ?? [],
-    labels: labelsByTask.get(t.id) ?? [],
-    reporter: t.created_by ? profileByUserId.get(t.created_by) ?? null : null,
-  })) as SerializedTask[];
+  const byId = new Map(((rel ?? []) as unknown as RawTask[]).map((r) => [r.id, r]));
+  return shapeTasks(tasks.map((t) => ({ ...t, ...(byId.get(t.id) ?? {}) })), people);
 }

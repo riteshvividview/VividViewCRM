@@ -44,17 +44,25 @@ export function taskVisible(ctx: AuthContext, mine: Set<string>, task: VisibleTa
   return task.created_by === ctx.userId || task.assignee_id === ctx.userId || !!task.assignees?.some((a) => a.id === ctx.userId);
 }
 
-/** Whether the caller may open this task at all (used by every per-task route). */
+/** Who a task belongs to, read once: team, brand, creator and assignees. */
+async function taskPeople(admin: SupabaseClient, taskId: string) {
+  const { data } = await admin.from("tasks")
+    .select("team_id, project_id, created_by, assignee_id, task_assignees(user_id)").eq("id", taskId).maybeSingle();
+  if (!data) return null;
+  return {
+    teamId: (data.team_id as string | null) ?? null,
+    projectId: (data.project_id as string | null) ?? null,
+    isMine: (userId: string) => data.created_by === userId || data.assignee_id === userId
+      || ((data.task_assignees ?? []) as { user_id: string }[]).some((a) => a.user_id === userId),
+  };
+}
+
+/** Whether the caller may open this task at all (used by every per-task route). One round trip. */
 export async function canAccessTask(admin: SupabaseClient, ctx: AuthContext, taskId: string): Promise<boolean> {
   if (isLead(ctx.role)) return true;
-  const teamId = (await teamIdsOfTasks(admin, [taskId])).get(taskId);
-  if (!teamId) return true;
-  const [mine, { data: task }, { data: assigned }] = await Promise.all([
-    myTeamIds(admin, ctx.userId),
-    admin.from("tasks").select("created_by, assignee_id").eq("id", taskId).maybeSingle(),
-    admin.from("task_assignees").select("user_id").eq("task_id", taskId).eq("user_id", ctx.userId).maybeSingle(),
-  ]);
-  return mine.has(teamId) || task?.created_by === ctx.userId || task?.assignee_id === ctx.userId || !!assigned;
+  const [t, mine] = await Promise.all([taskPeople(admin, taskId), myTeamIds(admin, ctx.userId)]);
+  if (!t) return false;
+  return !t.teamId || mine.has(t.teamId) || t.isMine(ctx.userId);
 }
 
 /** A team the caller may put a task in: any team for leads, otherwise one they belong to. */
@@ -93,9 +101,10 @@ export async function setTeamMembers(admin: SupabaseClient, workspaceId: string,
  * (the Brands tab shows every brand task). Changing it still needs canAccessTask.
  */
 export async function canReadTask(admin: SupabaseClient, ctx: AuthContext, taskId: string): Promise<boolean> {
-  if (await canAccessTask(admin, ctx, taskId)) return true;
-  const { data } = await admin.from("tasks").select("project_id").eq("id", taskId).maybeSingle();
-  return !!data?.project_id;
+  if (isLead(ctx.role)) return true;
+  const [t, mine] = await Promise.all([taskPeople(admin, taskId), myTeamIds(admin, ctx.userId)]);
+  if (!t) return false;
+  return !t.teamId || mine.has(t.teamId) || t.isMine(ctx.userId) || !!t.projectId;
 }
 
 /** User ids of a team's members. */
@@ -155,11 +164,8 @@ export function taskEditable(ctx: AuthContext, task: VisibleTask): boolean {
 export async function canEditTask(admin: SupabaseClient, ctx: AuthContext, taskId: string): Promise<boolean> {
   if (ctx.readOnly) return false;
   if (isLead(ctx.role)) return true;
-  const [{ data: t }, { data: a }] = await Promise.all([
-    admin.from("tasks").select("created_by, assignee_id").eq("id", taskId).maybeSingle(),
-    admin.from("task_assignees").select("user_id").eq("task_id", taskId).eq("user_id", ctx.userId).maybeSingle(),
-  ]);
-  return !!t && (t.created_by === ctx.userId || t.assignee_id === ctx.userId || !!a);
+  const t = await taskPeople(admin, taskId);
+  return !!t && t.isMine(ctx.userId);
 }
 
 export const NOT_YOURS_MESSAGE = "Only the people working on this task can change it.";

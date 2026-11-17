@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "./_lib/helpers";
-import { TASK_SELECT, attachRelations, type RawTask } from "./_lib/serialize";
+import { TASK_LIST_SELECT, TASK_SELECT, attachRelations, relationFilters, shapeTasks, workspacePeople, type RawTask } from "./_lib/serialize";
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "./_lib/board";
 import { RECURRING_PATTERNS } from "./_lib/recurrence";
 import { notifyUsers } from "./_lib/notify";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const plannedTo = params.get("planned_to");
   const limit = Math.min(Number(params.get("limit")) || 500, 1000);
 
-  let query = admin.from("tasks").select(TASK_SELECT).eq("workspace_id", ctx.workspaceId);
+  let query = relationFilters(admin.from("tasks").select(TASK_LIST_SELECT).eq("workspace_id", ctx.workspaceId));
   const ids = (params.get("ids") ?? "").split(",").map((s) => s.trim()).filter((s) => /^[0-9a-f-]{36}$/i.test(s)).slice(0, 50);
   if (ids.length) query = query.in("id", ids);
 
@@ -49,17 +49,18 @@ export async function GET(request: NextRequest) {
     query = query.or(orParts.join(","));
   }
 
-  const { data, error } = await query
-    .order("position", { ascending: true })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  // One round trip: the tasks with everything attached, people's names and "my teams" in parallel.
+  const [{ data, error }, mine, people] = await Promise.all([
+    query.order("position", { ascending: true }).order("created_at", { ascending: false }).limit(limit),
+    myTeamIds(admin, ctx.userId),
+    workspacePeople(admin, ctx.workspaceId),
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   // Team tasks are only listed for that team (and for leads, the creator and the assignees).
   // ?scope=brand with a project_id lists every task of the brand (the Brands tab), marking
   // the ones the caller may only look at.
-  const mine = await myTeamIds(admin, ctx.userId);
-  const all = await attachRelations(admin, (data ?? []) as RawTask[]);
+  const all = shapeTasks((data ?? []) as RawTask[], people);
   const brandView = projectId && params.get("scope") === "brand";
   // can_edit: creator, assignees and leads; can_chat: anyone with team access.
   const items = (brandView ? all : all.filter((t) => taskVisible(ctx, mine, t)))
