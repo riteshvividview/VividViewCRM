@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
-import { canAccessTask } from "../../_lib/teams";
+import { NOT_YOURS_MESSAGE, canAccessTask, canEditTask, canReadTask } from "../../_lib/teams";
 
 type Params = { params: Promise<{ id: string }> };
 const SELECT = "id, user_id, started_at, ended_at, duration_minutes, description, is_manual, created_at";
 
-async function load(id: string) {
+async function load(id: string, edit = false) {
   const ctx = await getAuthContext();
   if (!ctx) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   const admin = adminClient();
   const { data: task } = await admin.from("tasks").select("id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
-  if (!task || !(await canAccessTask(admin, ctx, id))) return { error: NextResponse.json({ error: "Task not found" }, { status: 404 }) };
+  if (!task || !(await canReadTask(admin, ctx, id))) return { error: NextResponse.json({ error: "Task not found" }, { status: 404 }) };
+  if (edit && !(await canEditTask(admin, ctx, id))) return { error: NextResponse.json({ error: NOT_YOURS_MESSAGE }, { status: 403 }) };
   return { ctx, admin };
 }
 
@@ -46,7 +47,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
-  const r = await load(id);
+  const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
   syncWorkspace(r.ctx.workspaceId);
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 /** DELETE ?entry_id= — remove one of your own entries. */
 export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
-  const r = await load(id);
+  const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
   syncWorkspace(r.ctx.workspaceId);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminClient, getAuthContext } from "../_lib/helpers";
 import { notifyUsers } from "../_lib/notify";
 import { purgeExpiredFiles } from "../_lib/files";
-import { getTaskSettings } from "../_lib/settings";
+import { getTaskSettings, purgeOldNotifications } from "../_lib/settings";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -46,5 +46,6 @@ export async function POST() {
   // Automatic cleanup, when the CEO has it switched on.
   const settings = await getTaskSettings(admin, ctx.workspaceId);
   if (settings.retention_enabled) await purgeExpiredFiles(admin, ctx.workspaceId, settings.retention_days).catch(() => 0);
+  await purgeOldNotifications(admin, ctx.workspaceId, settings.notif_read_days, settings.notif_unread_days).catch(() => 0);
   return NextResponse.json({ reminders });
 }

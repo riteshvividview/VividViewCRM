@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
-import { removeFiles, type FileStore } from "../_lib/files";
+import { moveTaskFiles, removeFiles, type FileStore } from "../_lib/files";
 import { notifyUsers } from "../_lib/notify";
 import { getTaskSettings } from "../_lib/settings";
-import { TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canAccessTask, canReadTask, canUseTeam } from "../_lib/teams";
+import { NOT_YOURS_MESSAGE, TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canAccessTask, canEditTask, canReadTask, canUseTeam } from "../_lib/teams";
 import { TASK_SELECT, attachRelations, type RawTask } from "../_lib/serialize";
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "../_lib/board";
 import { RECURRING_PATTERNS, nextOccurrence, shiftBy, type RecurringPattern } from "../_lib/recurrence";
@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!task || !(await canReadTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const [serialized] = await attachRelations(admin, [task as RawTask]);
-  return NextResponse.json({ task: { ...serialized, can_edit: !ctx.readOnly && (await canAccessTask(admin, ctx, id)) } });
+  return NextResponse.json({ task: { ...serialized, can_edit: await canEditTask(admin, ctx, id), can_chat: !ctx.readOnly && (await canAccessTask(admin, ctx, id)) } });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,6 +50,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { data: existing } = await admin.from("tasks").select("*")
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!(await canEditTask(admin, ctx, id))) return NextResponse.json({ error: NOT_YOURS_MESSAGE, code: "not_yours" }, { status: 403 });
 
   const updates: Record<string, unknown> = {};
   for (const field of PATCHABLE_FIELDS) {
@@ -67,6 +68,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+
+  // A completed task can only be reopened; everything else waits until it is.
+  if (existing.status === "done" && Object.keys(updates).some((k) => k !== "status" && k !== "board_column_id")) {
+    return NextResponse.json({ error: "This task is completed. Reopen it to make changes.", code: "task_completed" }, { status: 400 });
+  }
 
   for (const f of DATE_FIELDS) {
     if (updates[f] && !DATE_RE.test(String(updates[f]))) return NextResponse.json({ error: `Invalid ${f}` }, { status: 400 });
@@ -141,8 +147,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!count) return NextResponse.json({ error: "Upload the main file before completing this task", code: "main_file_required" }, { status: 400 });
   }
   if (newStatus !== existing.status) {
-    if (newStatus === "done") updates.completed_at = new Date().toISOString();
-    else if (existing.status === "done") updates.completed_at = null;
+    if (newStatus === "done") { updates.completed_at = new Date().toISOString(); logMeta.completed = true; }
+    else if (existing.status === "done") { updates.completed_at = null; logMeta.reopened = true; }
   }
 
   // Keep the legacy single-assignee columns untouched (managed by /assignees).
@@ -150,10 +156,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { data: task, error } = await admin.from("tasks").update(updates).eq("id", id).select(TASK_SELECT).single();
   if (error) return NextResponse.json({ error: /team_id/.test(error.message) ? TEAMS_MIGRATION_HINT : error.message }, { status: 400 });
 
-  await admin.from("task_activity_log").insert({
-    task_id: id, workspace_id: ctx.workspaceId, actor_id: ctx.userId, action: "updated", new_value: updates,
-    metadata: Object.keys(logMeta).length ? logMeta : null,
-  });
+  await logUpdate(admin, ctx, id, existing, updates, logMeta);
+
+  // A new brand or team means a new Cloudflare folder: move the task's files there.
+  const brandChanged = "project_id" in updates && updates.project_id !== existing.project_id;
+  const teamChanged = "team_id" in updates && (updates.team_id ?? null) !== (existing.team_id ?? null);
+  if (brandChanged || teamChanged) {
+    const moved = await moveTaskFiles(admin, ctx.workspaceId, id).catch(() => 0);
+    if (moved) {
+      await admin.from("task_activity_log").insert({
+        task_id: id, workspace_id: ctx.workspaceId, actor_id: ctx.userId, action: "files_moved",
+        metadata: { count: moved },
+      });
+    }
+  }
 
   // Tell the creator and the other assignees about every change someone else makes.
   {
@@ -164,7 +180,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const changes: string[] = [];
     if (statusChanged && !completed) changes.push(`moved it to ${(logMeta.column_name as string | undefined) ?? STATUS_LABELS[newStatus]}`);
     if ("planned_date" in updates && updates.planned_date !== existing.planned_date) {
-      changes.push(`moved it from ${day(existing.planned_date)} to ${day(updates.planned_date as string | null)}`);
+      changes.push(!existing.planned_date ? `scheduled it for ${day(updates.planned_date as string | null)}`
+        : !updates.planned_date ? "moved it to the waiting list"
+        : `rescheduled it from ${day(existing.planned_date)} to ${day(updates.planned_date as string)}`);
     }
     if ("due_date" in updates && updates.due_date !== existing.due_date) {
       changes.push(updates.due_date ? `${deadlineMoved ? "the deadline moved with it to" : "changed the deadline to"} ${day(updates.due_date as string)}` : "removed the deadline");
@@ -289,9 +307,60 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const { error } = await admin.from("tasks").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+  // Earlier notifications about the task would lead nowhere now.
+  await admin.from("notifications").delete().eq("entity_id", id);
   await notifyUsers(admin, ctx.workspaceId,
     [existing.created_by, existing.assignee_id, ...(wasAssigned ?? []).map((a) => a.user_id)].filter((u) => u && u !== ctx.userId),
     { type: "task_assigned", title: `${deleter?.full_name ?? "Someone"} deleted a task`, body: existing.title, entity_type: "task_deleted", entity_id: id },
   ).catch(() => {});
   return NextResponse.json({ success: true });
+}
+
+/** Fields that never show in the activity feed. */
+const QUIET_FIELDS = new Set(["updated_at", "board_id", "board_column_id", "completed_at", "position", "started_at", "assignee_id", "assignee_name"]);
+/** Moves of the day by the same person within this window become one line. */
+const MERGE_MS = 10 * 60 * 1000;
+
+/**
+ * Writes one activity line for a change, with only the fields that really changed.
+ * Dragging a task back and forth between days is folded into the line before it,
+ * so the feed reads "rescheduled from 17 Nov to 18 Nov" once instead of five times;
+ * if it ends up back on the day it started, the line disappears.
+ */
+async function logUpdate(
+  admin: ReturnType<typeof adminClient>, ctx: { userId: string; workspaceId: string }, id: string,
+  existing: Record<string, unknown>, updates: Record<string, unknown>, logMeta: Record<string, unknown>,
+) {
+  const changed = Object.fromEntries(Object.entries(updates).filter(([k, v]) => JSON.stringify(v ?? null) !== JSON.stringify(existing[k] ?? null)));
+  const shown = Object.keys(changed).filter((k) => !QUIET_FIELDS.has(k));
+  if (!shown.length && !Object.keys(logMeta).length) return;
+  const meta: Record<string, unknown> = { ...logMeta };
+  if ("planned_date" in changed) meta.from_planned_date = existing.planned_date ?? null;
+
+  const onlyDay = shown.length === 1 && shown[0] === "planned_date" && !logMeta.completed && !logMeta.reopened;
+  if (onlyDay) {
+    const { data: last } = await admin.from("task_activity_log").select("id, actor_id, action, new_value, metadata, created_at")
+      .eq("task_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const lastShown = Object.keys((last?.new_value ?? {}) as Record<string, unknown>).filter((k) => !QUIET_FIELDS.has(k));
+    const lastMeta = (last?.metadata ?? {}) as Record<string, unknown>;
+    if (last && last.actor_id === ctx.userId && last.action === "updated" && "from_planned_date" in lastMeta
+      && lastShown.length === 1 && lastShown[0] === "planned_date"
+      && Date.now() - new Date(last.created_at).getTime() < MERGE_MS) {
+      if ((lastMeta.from_planned_date ?? null) === (changed.planned_date ?? null)) {
+        await admin.from("task_activity_log").delete().eq("id", last.id);
+      } else {
+        await admin.from("task_activity_log").update({
+          new_value: { ...(last.new_value as Record<string, unknown>), ...changed },
+          metadata: { ...lastMeta, ...logMeta, from_planned_date: lastMeta.from_planned_date ?? null },
+          created_at: new Date().toISOString(),
+        }).eq("id", last.id);
+      }
+      return;
+    }
+  }
+
+  await admin.from("task_activity_log").insert({
+    task_id: id, workspace_id: ctx.workspaceId, actor_id: ctx.userId, action: "updated", new_value: changed,
+    metadata: Object.keys(meta).length ? meta : null,
+  });
 }

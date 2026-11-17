@@ -13,9 +13,14 @@ function describeUpdate(newValue: Record<string, unknown>, metadata?: Record<str
       case "status":
         parts.push(`changed the task status to ${(metadata?.column_name as string) ?? STATUS_CONFIG[value as TaskStatus]?.label ?? value}`);
         break;
-      case "planned_date":
-        parts.push(value ? `scheduled the task for ${new Date(value as string).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" })}` : "moved the task to the waiting list");
+      case "planned_date": {
+        const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
+        const from = metadata?.from_planned_date as string | null | undefined;
+        if (!value) parts.push("moved the task to the waiting list");
+        else if (from) parts.push(`rescheduled the task from ${day(from)} to ${day(value as string)}`);
+        else parts.push(`scheduled the task for ${day(value as string)}`);
         break;
+      }
       case "type_id":
         parts.push(`changed the type${metadata?.type_name ? ` to ${metadata.type_name}` : ""}`);
         break;
@@ -73,6 +78,8 @@ export function formatActivity(entry: TaskActivityEntry, profiles: Record<string
     case "created":
       return `${actor} created this task`;
     case "updated": {
+      if (entry.metadata?.reopened) return `${actor} reopened the task`;
+      if (entry.metadata?.completed) return `${actor} completed the task`;
       const parts = describeUpdate((entry.new_value ?? {}) as Record<string, unknown>, entry.metadata as Record<string, unknown> | null);
       return parts.length > 0 ? `${actor} ${parts.join(" and ")}` : `${actor} updated this task`;
     }
@@ -90,6 +97,10 @@ export function formatActivity(entry: TaskActivityEntry, profiles: Record<string
       const kind = entry.metadata?.kind as string | undefined;
       if (kind === "main") return `${actor} submitted the main file ${files}`.trim();
       return `${actor} added ${kind === "brief" ? "a brief file" : kind === "reference" ? "a reference" : "a file"}${files ? `: ${files}` : ""}`;
+    }
+    case "files_moved": {
+      const n = Number(entry.metadata?.count ?? 0);
+      return `${actor} moved ${n} file${n === 1 ? "" : "s"} to the new brand / team folder`;
     }
     case "label_added":
       return `${actor} added the "${entry.new_value?.label_name ?? "label"}" label`;

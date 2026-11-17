@@ -103,7 +103,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
   const visible = useMemo(() => applyTaskFilters(
     projectTasks.filter((t) => teamFilter === "all" || (teamFilter === "none" ? !t.team_id : t.team_id === teamFilter)), filters,
   ), [projectTasks, filters, teamFilter]);
-  const viewOnly = () => toast.info("You can view this task, but only the people working on it can change it.");
+  const viewOnly = () => toast.info("Only the people working on this task can change it.");
 
   async function api(path: string, method: string, body?: unknown) {
     const res = await fetch(`/api/tasks/projects/${projectId}${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });

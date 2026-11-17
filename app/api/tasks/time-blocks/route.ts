@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
-import { canAccessTask, visibleTaskIds } from "../_lib/teams";
+import { canAccessTask, canEditTask, visibleTaskIds } from "../_lib/teams";
 
 const SELECT = "id, task_id, user_id, start_at, end_at, task:tasks(id, title, status, color, priority, project:task_projects!project_id(id, name, color))";
 
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
   const admin = adminClient();
   const { data: task } = await admin.from("tasks").select("id").eq("id", body.task_id ?? "").eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!task || !(await canAccessTask(admin, ctx, task.id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  if (!(await canEditTask(admin, ctx, task.id))) return NextResponse.json({ error: "You can only block time for tasks you are working on" }, { status: 403 });
 
   let userId = ctx.userId;
   if (body.user_id && body.user_id !== ctx.userId) {

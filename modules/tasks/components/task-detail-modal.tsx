@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendar, faCircleCheck as faCircleCheckRegular, faEye } from "@fortawesome/free-regular-svg-icons";
 import {
   faXmark, faEllipsis, faLink, faTrashCan, faCopy, faAlignLeft, faArrowsRotate, faBullseye, faRotateLeft, faCircleCheck,
-  faArrowRightToBracket, faSpinner, faTableColumns, faWindowRestore, faExpand, faCheck, faUserGroup,
+  faArrowRightToBracket, faSpinner, faLock, faTableColumns, faWindowRestore, faExpand, faCheck, faUserGroup,
 } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -114,7 +114,9 @@ export function TaskDetailModal(props: Props) {
   const column = columns.find((c) => c.id === task.board_column_id);
   const done = task.status === "done";
   // Another team's task opened from the Brands tab: view only.
-  const locked = task.can_edit === false;
+  // Another team's task (from the Brands tab) is view only for good; a completed task until it is reopened.
+  const viewOnly = task.can_edit === false;
+  const locked = viewOnly || done;
   // A team task can only be assigned to that team's members.
   const taskTeam = teams.find((t) => t.id === task.team_id) ?? null;
   const canDelete = canDeleteProp && !locked;
@@ -151,7 +153,7 @@ export function TaskDetailModal(props: Props) {
               </span>
             ) : <span className="truncate">No brand</span>}
             {key && <><span>/</span><span className="font-medium text-foreground">{key}</span></>}
-            {locked && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"><FontAwesomeIcon icon={faEye} className="h-3 w-3" />View only</span>}
+            {viewOnly && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"><FontAwesomeIcon icon={faEye} className="h-3 w-3" />View only</span>}
             {done && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"><FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3" />Completed</span>}
             <div className="ml-auto flex items-center gap-1">
               <DropdownMenu>
@@ -220,7 +222,12 @@ export function TaskDetailModal(props: Props) {
                 className="w-full bg-transparent text-[22px] font-semibold leading-tight tracking-tight focus:outline-none"
               />
 
-              <fieldset disabled={locked} className="m-0 mt-4 grid min-w-0 gap-x-8 gap-y-0.5 border-0 p-0 lg:grid-cols-2">
+              {done && !viewOnly && (
+                <p className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-700 dark:text-emerald-400">
+                  <FontAwesomeIcon icon={faLock} className="h-3 w-3" />This task is completed and locked. Reopen it to make changes.
+                </p>
+              )}
+              <fieldset disabled={locked} className={cn("m-0 mt-4 grid min-w-0 gap-x-8 gap-y-0.5 border-0 p-0", layout !== "sidebar" && "lg:grid-cols-2")}>
                 <Row label="Brand">
                   <Select value={task.project_id ?? "__none__"} onValueChange={(v) => save({ project_id: v === "__none__" ? null : v })}>
                     <SelectTrigger className={trigger}>
@@ -356,7 +363,7 @@ export function TaskDetailModal(props: Props) {
               onFilesChanged={() => onRefresh(task.id)}
             />
 
-            {!locked && <div className="flex flex-wrap items-center gap-3 border-t px-4 py-4 sm:px-6">
+            {!viewOnly && <div className="flex flex-wrap items-center gap-3 border-t px-4 py-4 sm:px-6">
               {done ? (
                 <Button variant="outline" size="sm" className="gap-1.5" disabled={!!statusBusy} onClick={async () => {
                   setStatusBusy("reopen");
@@ -385,9 +392,9 @@ export function TaskDetailModal(props: Props) {
         </div>
 
         {/* ── Chat ────────────────────────────────────────────────────────── */}
-        <aside className={cn("min-h-0 w-full flex-1 flex-col bg-muted/20 md:w-[400px] md:flex-none md:shrink-0 md:border-l", pane === "chat" ? "flex" : "hidden md:flex")}>
+        <aside className={cn("min-h-0 w-full flex-1 flex-col bg-muted/20 md:flex-none md:shrink-0 md:border-l", layout === "sidebar" ? "md:w-[340px]" : "md:w-[400px]", pane === "chat" ? "flex" : "hidden md:flex")}>
           <TaskChat
-            taskId={task.id} members={members} currentUserId={currentUserId} readOnly={locked}
+            taskId={task.id} members={members} currentUserId={currentUserId} readOnly={task.can_chat === false}
             refreshKey={[task.status, task.priority, task.due_date, task.type_id, task.planned_date, task.attachment_count, task.assignees.map((a) => a.id).join(",")].join("|")}
           />
         </aside>

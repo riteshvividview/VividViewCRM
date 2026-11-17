@@ -49,7 +49,7 @@ export function NotificationBell() {
   // Set after the hook below; lets the popup call the latest handlers.
   const actions = useRef<{ read: (id: string) => void; open: (n: Notification) => void }>({ read: () => {}, open: () => {} });
 
-  const { notifications, unreadCount, markRead, markAllRead } = useNotifications((fresh) => {
+  const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications((fresh) => {
     // A chat that is already open on screen needs no popup: just mark its messages read.
     const openChat = document.body.dataset.openTaskChat;
     const quiet = fresh.filter((n) => isTaskMessage(n) && n.entity_id === openChat);
@@ -109,8 +109,16 @@ export function NotificationBell() {
         <div className="absolute right-0 top-10 z-50 w-[340px] overflow-hidden rounded-2xl border border-border bg-popover shadow-xl">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
-            {unreadCount > 0 && (
+            {unreadCount > 0 ? (
               <button className="text-xs text-primary hover:underline" onClick={markAllRead}>Mark all read</button>
+            ) : notifications.length > 0 && (
+              // Only once everything is read: deletes this person's notifications for good.
+              <button
+                className="text-xs text-muted-foreground hover:text-destructive hover:underline"
+                onClick={async () => { const err = await clearAll(); if (err) toast.error(err); }}
+              >
+                Clear all
+              </button>
             )}
           </div>
 

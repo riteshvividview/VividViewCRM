@@ -159,6 +159,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     },
     updateTask: async (id, updates) => {
       if (readOnly) { viewOnly(); return; }
+      if (tasks.find((t) => t.id === id)?.can_edit === false) { toast.info("Only the people working on this task can change it."); return; }
       try { await updateTask(id, updates); } catch (e) {
         toast.error(errMsg(e));
         // Completing needs the main file: open the task so it can be uploaded right away.
@@ -170,9 +171,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       if (selectedId === id) { setPanelOpen(false); setSelectedId(null); }
     },
     addAssignees: async (id, payload) => {
+      if (tasks.find((t) => t.id === id)?.can_edit === false) { toast.info("Only the people working on this task can change it."); return null; }
       try { return await addAssignees(id, payload); } catch (e) { toast.error(errMsg(e)); return null; }
     },
     removeAssignee: async (id, userId) => {
+      if (tasks.find((t) => t.id === id)?.can_edit === false) { toast.info("Only the people working on this task can change it."); return null; }
       try { return await removeAssignee(id, userId); } catch (e) { toast.error(errMsg(e)); return null; }
     },
     openTask: (task) => { setOutsideTask(task); setSelectedId(task.id); setPanelOpen(true); },
@@ -191,8 +194,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         onDelete={value.deleteTask}
         onDuplicate={async (t) => {
           const copy = await value.addTask({
-            title: `${t.title} (copy)`, description: t.description, project_id: t.project_id, board_column_id: t.board_column_id,
-            type_id: t.type_id, priority: t.priority, due_date: t.due_date, planned_date: t.planned_date,
+            // A fresh copy: same details, back to To do, no dates and no files (it gets its own folder).
+            title: `${t.title} (copy)`, description: t.description, project_id: t.project_id, status: "todo",
+            type_id: t.type_id, priority: t.priority, due_date: null, planned_date: null, recurring_pattern: t.recurring_pattern,
             brief_note: t.brief_note, reference_note: t.reference_note, team_id: t.team_id,
             assignee_ids: t.assignees.map((a) => a.id),
           });

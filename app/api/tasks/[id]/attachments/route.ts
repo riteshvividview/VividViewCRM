@@ -5,7 +5,7 @@ import {
   FILE_KINDS, R2_MAX_BYTES, SUPABASE_MAX_BYTES, buildFilePath, presignUpload, putFile, r2Enabled, r2ObjectSize,
   downloadUrls, removeFiles, signedUrls, type FileKind, type FileStore,
 } from "../../_lib/files";
-import { canAccessTask, canReadTask, teamIdsOfTasks, teamsById } from "../../_lib/teams";
+import { NOT_YOURS_MESSAGE, canAccessTask, canEditTask, canReadTask, teamIdsOfTasks, teamsById } from "../../_lib/teams";
 
 type Params = { params: Promise<{ id: string }> };
 const ATTACHMENT_SELECT = "id, kind, storage, file_path, file_name, size_bytes, mime_type, link_url, purged_at, uploaded_by, created_at";
@@ -62,8 +62,8 @@ export async function GET(request: NextRequest, { params }: Params) {
       ...a, url: a.link_url ?? (file_path ? urls.get(file_path) ?? null : null),
       download_url: file_path ? downloads.get(file_path) ?? null : null,
     })),
-    can_submit_main: !r.ctx.readOnly && (await canAccessTask(r.admin, r.ctx, id)) && (await canSubmitMain(r)),
-    can_edit: !r.ctx.readOnly && (await canAccessTask(r.admin, r.ctx, id)),
+    can_submit_main: (await canEditTask(r.admin, r.ctx, id)) && (await canSubmitMain(r)),
+    can_edit: await canEditTask(r.admin, r.ctx, id),
   });
 }
 
@@ -86,6 +86,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     const kind = parseKind(body.kind);
     if (!kind) return err("Invalid file section");
     if (kind === "main" && !(await canSubmitMain(r))) return err("Only the assignees can submit the main file", 403);
+    if (kind !== "chat" && !(await canEditTask(r.admin, r.ctx, id))) return err(NOT_YOURS_MESSAGE, 403);
+    if (kind !== "chat" && r.task.status === "done") return err("This task is completed. Reopen it to change its files.");
 
     if (body.action === "link") {
       const url = typeof body.url === "string" ? body.url.trim() : "";
@@ -136,6 +138,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   const kind = parseKind(form?.get("kind") ?? "reference");
   if (!kind) return err("Invalid file section");
   if (kind === "main" && !(await canSubmitMain(r))) return err("Only the assignees can submit the main file", 403);
+  if (kind !== "chat" && !(await canEditTask(r.admin, r.ctx, id))) return err(NOT_YOURS_MESSAGE, 403);
+  if (kind !== "chat" && r.task.status === "done") return err("This task is completed. Reopen it to change its files.");
 
   const saved = [];
   for (const file of files) {
@@ -167,6 +171,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const attId = request.nextUrl.searchParams.get("attachment_id") ?? "";
   const { data: att } = await r.admin.from("task_attachments").select("id, kind, storage, file_path, uploaded_by").eq("id", attId).eq("task_id", id).maybeSingle();
   if (!att) return err("File not found", 404);
+  if (att.kind !== "chat" && !(await canEditTask(r.admin, r.ctx, id))) return err(NOT_YOURS_MESSAGE, 403);
+  if (att.kind !== "chat" && r.task.status === "done") return err("This task is completed. Reopen it to change its files.");
   if (!(isLead(r.ctx.role) || att.uploaded_by === r.ctx.userId || r.task.created_by === r.ctx.userId)) {
     return err("You can only remove files you uploaded", 403);
   }

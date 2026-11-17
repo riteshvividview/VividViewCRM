@@ -54,14 +54,31 @@ export function useNotifications(onNew?: (fresh: Notification[]) => void) {
     createClient().from("notifications").update({ read: true }).eq("id", id).then(() => {});
   }, []);
 
+  // Every unread notification of mine, including older ones not loaded here.
   const markAllRead = useCallback(() => {
-    const unreadIds = notifications.filter((n) => !n.read && notificationAllowed(prefs, n)).map((n) => n.id);
     setNotifications((p) => p.map((n) => ({ ...n, read: true })));
-    if (unreadIds.length) createClient().from("notifications").update({ read: true }).in("id", unreadIds).then(() => {});
-  }, [notifications, prefs]);
+    fetch("/api/notifications", { method: "PATCH" }).then((r) => { if (!r.ok) load(); }).catch(() => load());
+  }, [load]);
+
+  /** Deletes all my notifications. The server refuses while any of them is unread. */
+  const clearAll = useCallback(async (): Promise<string | null> => {
+    const before = notifications;
+    setNotifications([]);
+    try {
+      const r = await fetch("/api/notifications", { method: "DELETE" });
+      if (r.ok) return null;
+      const j = await r.json().catch(() => ({}));
+      setNotifications(before);
+      load();
+      return j.error ?? "Could not clear notifications";
+    } catch {
+      setNotifications(before);
+      return "Could not clear notifications";
+    }
+  }, [notifications, load]);
 
   const visible = notifications.filter((n) => notificationAllowed(prefs, n));
   const unreadCount = visible.filter((n) => !n.read).length;
 
-  return { notifications: visible, loading, markRead, markAllRead, unreadCount };
+  return { notifications: visible, loading, markRead, markAllRead, clearAll, unreadCount };
 }

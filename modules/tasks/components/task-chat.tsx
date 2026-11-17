@@ -41,9 +41,13 @@ function Avatar({ m, size = 28 }: { m: TaskMember | null; size?: number }) {
 function ChatAttachment({ f, mine }: { f: ChatFile; mine: boolean }) {
   if (f.purged) {
     return (
-      <span className="mb-1.5 flex items-center gap-1.5 italic opacity-70">
-        <FontAwesomeIcon icon={faFile} className="h-3 w-3" />{f.file_name} (file removed by cleanup)
-      </span>
+      <div className={cn("mb-1.5 flex w-56 max-w-full items-center gap-2.5 rounded-lg p-2 opacity-75", mine ? "bg-white/15" : "bg-background/70")} title="This file was attached, but it has been cleaned up">
+        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-md", mine ? "bg-white/20" : "bg-muted")}><FontAwesomeIcon icon={faFile} className="h-4 w-4" /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-medium line-through">{f.file_name}</span>
+          <span className="block text-[10px] opacity-80">Cleaned up, no longer available</span>
+        </span>
+      </div>
     );
   }
   const download = f.url && (

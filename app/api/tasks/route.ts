@@ -5,7 +5,7 @@ import { TASK_SELECT, attachRelations, type RawTask } from "./_lib/serialize";
 import { columnForStatus, ensureProjectBoard, type StatusKey } from "./_lib/board";
 import { RECURRING_PATTERNS } from "./_lib/recurrence";
 import { notifyUsers } from "./_lib/notify";
-import { TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canUseTeam, myTeamIds, taskVisible, teamMemberIds } from "./_lib/teams";
+import { TEAMS_MIGRATION_HINT, assigneesOutsideTeam, canUseTeam, myTeamIds, taskEditable, taskVisible, teamMemberIds } from "./_lib/teams";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: StatusKey[] = ["todo", "in_progress", "waiting", "done"];
@@ -59,9 +59,9 @@ export async function GET(request: NextRequest) {
   const mine = await myTeamIds(admin, ctx.userId);
   const all = await attachRelations(admin, (data ?? []) as RawTask[]);
   const brandView = projectId && params.get("scope") === "brand";
-  const items = brandView
-    ? all.map((t) => ({ ...t, can_edit: !ctx.readOnly && taskVisible(ctx, mine, t) }))
-    : all.filter((t) => taskVisible(ctx, mine, t));
+  // can_edit: creator, assignees and leads; can_chat: anyone with team access.
+  const items = (brandView ? all : all.filter((t) => taskVisible(ctx, mine, t)))
+    .map((t) => ({ ...t, can_edit: taskEditable(ctx, t), can_chat: !ctx.readOnly && taskVisible(ctx, mine, t) }));
   return NextResponse.json({ items });
 }
 

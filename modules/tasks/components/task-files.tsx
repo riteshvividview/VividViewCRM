@@ -83,7 +83,7 @@ function FileRow({ f, onRemove }: { f: TaskAttachment; onRemove?: () => void }) 
           <a href={f.url ?? "#"} target="_blank" rel="noreferrer" className="block truncate text-[13px] font-medium hover:underline">{f.file_name}</a>
         )}
         <p className="text-[11px] text-muted-foreground">
-          {purged ? "Removed after 30 days" : isLink ? "Link" : formatFileSize(f.size_bytes)}
+          {purged ? "Was attached here; the file has been cleaned up" : isLink ? "Link" : formatFileSize(f.size_bytes)}
         </p>
       </div>
       {!purged && f.url && (

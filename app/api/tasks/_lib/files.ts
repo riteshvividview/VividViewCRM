@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, HeadObjectCommand, CopyObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -60,6 +60,45 @@ export function buildFilePath(workspaceId: string, task: PathTask, kind: FileKin
   const key = task.number ? `${task.project?.key ?? "TASK"}-${task.number} ` : "";
   const folder = clean(`${key}${task.title}`, 80);
   return `${workspaceId}/${brand}/${team}/${month}/${folder}/${SECTION_FOLDER[kind]}/${crypto.randomUUID().slice(0, 8)}-${clean(fileName, 120)}`;
+}
+
+/**
+ * After a task's brand or team changes, moves its stored files to the matching
+ * `Brand / Team / …` folder and updates their records. Cleaned-up files and links
+ * have nothing stored, so they are skipped. Returns how many files moved.
+ */
+export async function moveTaskFiles(admin: SupabaseClient, workspaceId: string, taskId: string): Promise<number> {
+  const { data: t } = await admin.from("tasks")
+    .select("id, title, number, created_at, team_id, project:task_projects!project_id(name, key)").eq("id", taskId).maybeSingle();
+  if (!t) return 0;
+  const project = (Array.isArray(t.project) ? t.project[0] : t.project) as { name: string; key?: string | null } | null;
+  const { data: team } = t.team_id ? await admin.from("teams").select("name").eq("id", t.team_id).maybeSingle() : { data: null };
+  const task: PathTask = { id: t.id, title: t.title, number: t.number, created_at: t.created_at, project, team };
+
+  const { data: files } = await admin.from("task_attachments").select("id, kind, storage, file_path").eq("task_id", taskId).not("file_path", "is", null);
+  let moved = 0;
+  for (const f of files ?? []) {
+    const from = f.file_path as string;
+    const folder = buildFilePath(workspaceId, task, f.kind as FileKind, "x").split("/").slice(0, -1).join("/");
+    const to = `${folder}/${from.split("/").pop()}`;
+    if (to === from) continue;
+    try {
+      if (f.storage === "r2") {
+        if (!r2Enabled()) continue;
+        const bucket = env().bucket!;
+        await r2().send(new CopyObjectCommand({ Bucket: bucket, Key: to, CopySource: `${bucket}/${from.split("/").map(encodeURIComponent).join("/")}` }));
+        await r2().send(new DeleteObjectCommand({ Bucket: bucket, Key: from }));
+      } else {
+        const { error } = await admin.storage.from(SUPABASE_BUCKET).move(from, to);
+        if (error) continue;
+      }
+      await admin.from("task_attachments").update({ file_path: to }).eq("id", f.id);
+      moved++;
+    } catch {
+      // Leave this file where it is; it still opens from its old place.
+    }
+  }
+  return moved;
 }
 
 /** Server-side upload (small files / Supabase fallback). */

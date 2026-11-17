@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
-  faBroom, faUserShield, faTrashCan, faSpinner, faLock, faCloud, faDatabase, faCircleCheck, faEye, faEyeSlash, faUserPen,
+  faBroom, faBell, faUserShield, faTrashCan, faSpinner, faLock, faCloud, faDatabase, faCircleCheck, faEye, faEyeSlash, faUserPen,
 } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 type HrAccess = "full" | "view" | "hidden";
 type DeleteRule = "creator" | "leads";
-interface Settings { retention_enabled: boolean; retention_days: number; last_cleanup_at: string | null; hr_access: HrAccess; delete_rule: DeleteRule }
+interface Settings { retention_enabled: boolean; retention_days: number; last_cleanup_at: string | null; hr_access: HrAccess; delete_rule: DeleteRule; notif_read_days: number; notif_unread_days: number }
 interface Amount { files: number; bytes: number }
 interface Payload { settings: Settings; storage: Record<string, Amount>; removed: number; cleanup: { due: Amount; all: Amount }; cloudflare: boolean }
 
@@ -97,7 +97,8 @@ export default function TaskSettingsPage() {
     setRunning(false);
     setConfirm(null);
     if (!res.ok) { toast.error(json.error ?? "Cleanup failed"); return; }
-    toast.success(json.removed ? `Removed ${json.removed} file${json.removed === 1 ? "" : "s"}` : "Nothing to remove");
+    const parts = [json.removed && `${json.removed} file${json.removed === 1 ? "" : "s"}`, json.notifications && `${json.notifications} old notification${json.notifications === 1 ? "" : "s"}`].filter(Boolean);
+    toast.success(parts.length ? `Removed ${parts.join(" and ")}` : "Nothing to remove");
     load();
   }
 
@@ -183,6 +184,30 @@ export default function TaskSettingsPage() {
           {data.cloudflare ? "New files are stored in Cloudflare R2." : "Cloudflare R2 is not connected yet, so files are stored in Supabase (25 MB per file)."}
           {data.removed > 0 && ` ${data.removed} file${data.removed === 1 ? " has" : "s have"} been removed by cleanup so far.`}
         </p>
+      </Card>
+
+      <Card icon={faBell} title="Notification cleanup" hint="Old notifications are removed from everyone's bell automatically. Tasks, chat and activity are not affected.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([
+            ["notif_read_days", "Read notifications", "Removed this long after they were read.", [7, 15, 30, 60]],
+            ["notif_unread_days", "Unread notifications", "Removed this long after they arrived.", [30, 60, 90, 180]],
+          ] as const).map(([key, label, help, presets]) => (
+            <div key={key} className="rounded-xl border p-4">
+              <p className="text-sm font-medium">{label}</p>
+              <p className="mb-3 text-xs text-muted-foreground">{help}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {presets.map((d) => (
+                  <button key={d} type="button" onClick={() => d !== s[key] && save({ [key]: d } as Partial<Settings>)}
+                    className={cn("rounded-full border px-3 py-1 text-[13px] font-medium", s[key] === d ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted")}>
+                    {d} days
+                  </button>
+                ))}
+                {!(presets as readonly number[]).includes(s[key]) && <span className="rounded-full border border-primary bg-primary px-3 py-1 text-[13px] font-medium text-primary-foreground">{s[key]} days</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">When a task is deleted, its notifications are removed straight away and only the &quot;deleted a task&quot; notice is kept. &quot;Run cleanup now&quot; above also clears old notifications.</p>
       </Card>
 
       <Card icon={faUserShield} title="HR access to Tasks" hint="Decide what people with the HR role can do in Task Management.">

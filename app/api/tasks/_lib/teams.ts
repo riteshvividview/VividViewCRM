@@ -140,3 +140,26 @@ export async function visibleTaskIds(admin: SupabaseClient, ctx: AuthContext, ta
   }
   return allowed;
 }
+
+/**
+ * Who may change a task: its creator, its assignees, team leads and the CEO.
+ * Everyone else who can see it (teammates, the Brands tab) may look and, if they
+ * have team access, chat, but not change anything.
+ */
+export function taskEditable(ctx: AuthContext, task: VisibleTask): boolean {
+  if (ctx.readOnly) return false;
+  if (isLead(ctx.role)) return true;
+  return task.created_by === ctx.userId || task.assignee_id === ctx.userId || !!task.assignees?.some((a) => a.id === ctx.userId);
+}
+
+export async function canEditTask(admin: SupabaseClient, ctx: AuthContext, taskId: string): Promise<boolean> {
+  if (ctx.readOnly) return false;
+  if (isLead(ctx.role)) return true;
+  const [{ data: t }, { data: a }] = await Promise.all([
+    admin.from("tasks").select("created_by, assignee_id").eq("id", taskId).maybeSingle(),
+    admin.from("task_assignees").select("user_id").eq("task_id", taskId).eq("user_id", ctx.userId).maybeSingle(),
+  ]);
+  return !!t && (t.created_by === ctx.userId || t.assignee_id === ctx.userId || !!a);
+}
+
+export const NOT_YOURS_MESSAGE = "Only the people working on this task can change it.";

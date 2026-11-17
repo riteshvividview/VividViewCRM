@@ -188,6 +188,8 @@ export interface Task {
   team: { id: string; name: string; color: string | null } | null;
   /** False when the task is only viewable (another team's task seen from the Brands tab). */
   can_edit?: boolean;
+  /** False when the caller may read the chat but not write in it (Brands tab, outside the task's team). */
+  can_chat?: boolean;
   brief_note: string | null;
   reference_note: string | null;
   main_note: string | null;

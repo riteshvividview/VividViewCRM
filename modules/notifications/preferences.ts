@@ -47,13 +47,14 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
 const KEY = "vividview-notification-prefs";
 export const NOTIFICATION_PREFS_EVENT = "notification-prefs:changed";
 
-const merge = (p: Partial<NotificationPrefs> | null | undefined): NotificationPrefs =>
+/** Fills in defaults for anything missing (also used on the server with the saved account copy). */
+export const normalizeNotificationPrefs = (p: Partial<NotificationPrefs> | null | undefined): NotificationPrefs =>
   ({ ...DEFAULT_NOTIFICATION_PREFS, ...(p ?? {}), browser: { ...DEFAULT_NOTIFICATION_PREFS.browser, ...(p?.browser ?? {}) } });
 
 export function loadNotificationPrefs(): NotificationPrefs {
   try {
     const raw = localStorage.getItem(KEY);
-    return merge(raw ? JSON.parse(raw) : null);
+    return normalizeNotificationPrefs(raw ? JSON.parse(raw) : null);
   } catch {
     return DEFAULT_NOTIFICATION_PREFS;
   }
@@ -61,7 +62,7 @@ export function loadNotificationPrefs(): NotificationPrefs {
 
 /** Updates the browser copy (used after loading the account's saved values). */
 export function cacheNotificationPrefs(prefs: Partial<NotificationPrefs>) {
-  try { localStorage.setItem(KEY, JSON.stringify(merge(prefs))); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify(normalizeNotificationPrefs(prefs))); } catch {}
   window.dispatchEvent(new Event(NOTIFICATION_PREFS_EVENT));
 }
 
