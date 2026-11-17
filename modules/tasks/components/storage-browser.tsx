@@ -323,14 +323,16 @@ export function StorageBrowser() {
       </div>
 
       {/* Storage info: space used, breakdown, clean-up schedule — in a side panel */}
-      {showSummary && (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Storage info">
-          <button type="button" aria-label="Close storage info" className="absolute inset-0 bg-black/30" onClick={() => setShowSummary(false)} />
-          <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l bg-background shadow-2xl">
+      {/* Always mounted so it can slide in and out; hidden from clicks and screen readers while closed. */}
+      <div className={cn("fixed inset-0 z-50", !showSummary && "pointer-events-none")} role="dialog" aria-modal="true" aria-label="Storage info" aria-hidden={!showSummary}>
+          <button type="button" aria-label="Close storage info" tabIndex={showSummary ? 0 : -1}
+            className={cn("absolute inset-0 bg-black/30 transition-opacity duration-300 ease-out", showSummary ? "opacity-100" : "opacity-0")} onClick={() => setShowSummary(false)} />
+          <aside className={cn("absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l bg-background shadow-2xl transition-transform duration-300 ease-out motion-reduce:transition-none",
+            showSummary ? "translate-x-0" : "translate-x-full")}>
             <div className="flex items-center gap-2 border-b px-4 py-3">
               <FontAwesomeIcon icon={faChartPie} className="h-3.5 w-3.5 text-primary" />
               <h2 className="text-sm font-semibold">Storage info</h2>
-              <button type="button" onClick={() => setShowSummary(false)} aria-label="Close" className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <button type="button" onClick={() => setShowSummary(false)} aria-label="Close" tabIndex={showSummary ? 0 : -1} className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                 <FontAwesomeIcon icon={faXmark} className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -338,8 +340,7 @@ export function StorageBrowser() {
               {summary ? <StorageUsage data={summary} onChanged={refresh} compact /> : <FontAwesomeIcon icon={faSpinner} spin className="text-muted-foreground" />}
             </div>
           </aside>
-        </div>
-      )}
+      </div>
 
       {uploads.length > 0 && (
         <div className="space-y-1.5 rounded-xl border bg-card px-4 py-3">
