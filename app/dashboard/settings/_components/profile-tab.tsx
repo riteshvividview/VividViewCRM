@@ -20,10 +20,10 @@ const ROLE_LABEL: Record<UserRole, string> = { super_admin: "CEO", hr: "HR", tea
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const NONE = "__none__";
 
-interface Form { first: string; last: string; country: string; dial: string; phone: string; day: string; month: string }
-const EMPTY: Form = { first: "", last: "", country: "", dial: "+91", phone: "", day: "", month: "" };
+interface Form { first: string; last: string; dial: string; phone: string; day: string; month: string }
+const EMPTY: Form = { first: "", last: "", dial: "+91", phone: "", day: "", month: "" };
 
-/** Photo, name, country, phone and birthday. Email and role are shown but managed by the CEO. */
+/** Photo, name, phone (+91 unless changed) and birthday. Email and role are shown but managed by the CEO. */
 export function ProfileTab() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,7 @@ export function ProfileTab() {
       const first = typeof meta.first_name === "string" && `${meta.first_name} ${meta.last_name ?? ""}`.trim() === full ? meta.first_name : full.split(" ")[0] ?? "";
       const f: Form = {
         first, last: full.slice(first.length).trim(),
-        country: meta.country ?? "", dial: meta.phone_code ?? "+91", phone: meta.phone ?? "",
+        dial: meta.phone_code || "+91", phone: meta.phone ?? "",
         day: meta.birthday_day ? String(meta.birthday_day) : "", month: meta.birthday_month ? String(meta.birthday_month) : "",
       };
       setForm(f); setSaved(f);
@@ -115,7 +115,7 @@ export function ProfileTab() {
       if (!updated?.length) { toast.error("Your profile could not be updated. Ask the CEO to check your account."); return; }
       const { error: metaError } = await supabase.auth.updateUser({ data: {
         full_name: fullName, first_name: form.first.trim(), last_name: form.last.trim(),
-        country: form.country || null, phone_code: form.dial, phone: form.phone.trim() || null,
+        country: null, phone_code: form.dial || "+91", phone: form.phone.trim() || null,
         birthday_day: day, birthday_month: month,
       } });
       if (metaError) { toast.error(metaError.message); return; }
@@ -165,20 +165,6 @@ export function ProfileTab() {
         <div className="space-y-1.5">
           <Label htmlFor="last">Last name</Label>
           <Input id="last" value={form.last} maxLength={60} onChange={(e) => set({ last: e.target.value })} className="h-10" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Country</Label>
-          <Select value={form.country || NONE} onValueChange={(v) => {
-            const c = COUNTRIES.find((x) => x.code === v);
-            // Picking a country also sets its dialling code while the phone number is still empty.
-            set({ country: v === NONE ? "" : v, ...(c && !form.phone ? { dial: c.dial } : {}) });
-          }}>
-            <SelectTrigger className="h-10"><SelectValue placeholder="Country" /></SelectTrigger>
-            <SelectContent className="max-h-72">
-              <SelectItem value={NONE}>Not set</SelectItem>
-              {COUNTRIES.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="phone">Phone</Label>
