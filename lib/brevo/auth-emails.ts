@@ -4,9 +4,10 @@ const LOGO_URL = "https://framerusercontent.com/images/2gAAyVbI2Y7gBWNO6ztH91fY2
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const FONT = "'Segoe UI',Helvetica,Arial,sans-serif";
 
-function layout(title: string, inner: string, footer: string): string {
+function layout(title: string, inner: string, footer: string, preheader = ""): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f7;font-family:${FONT};">
+${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>` : ""}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f7;padding:32px 12px;"><tr><td align="center">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
 <tr><td style="background:#5b21b6;padding:20px 32px;"><img src="${LOGO_URL}" alt="Vivid View" width="120" style="display:block;height:auto;max-width:120px;" /></td></tr>
@@ -42,11 +43,12 @@ export function codeEmail(code: string, purpose: CodePurpose, name?: string) {
   const c = CODE_COPY[purpose];
   const inner = [
     name ? p(`Hi ${esc(name.split(" ")[0])},`) : "",
+    p(`Your Vivid View verification code is <strong>${esc(code)}</strong>`),
     p(c.lead),
     `<p style="margin:8px 0 24px;font-size:32px;font-weight:700;letter-spacing:8px;color:#5b21b6;font-family:${FONT};">${esc(code)}</p>`,
     p(`<span style="font-size:13px;color:#6b7280;">The code works once and expires in 1 hour. Never share it with anyone, including people who say they work at Vivid View.</span>`),
   ].join("");
-  return { subject: `${code} ${c.subject}`, htmlContent: layout(c.title, inner, "If you didn't ask for this code, someone may have typed your email by mistake. Nothing has changed on your account.") };
+  return { subject: `${code} ${c.subject}`, htmlContent: layout(c.title, inner, "If you didn't ask for this code, someone may have typed your email by mistake. Nothing has changed on your account.", `Your Vivid View verification code is ${code}`) };
 }
 
 export function passwordChangedEmail(name: string) {
