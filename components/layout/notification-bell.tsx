@@ -57,6 +57,8 @@ export function NotificationBell() {
     quiet.forEach((n) => actions.current.read(n.id));
     const loud = fresh.filter((n) => !quiet.includes(n));
     if (!loud.length) return;
+    // Playing Draw and Guess with notifications turned off: no sound or popups (they still land in the bell).
+    if (document.body.dataset.gameQuiet === "1") return;
     const prefs = loadNotificationPrefs();
     // Desktop alert from the browser when the app is not the window in front.
     if (typeof Notification !== "undefined" && Notification.permission === "granted" && (document.hidden || !document.hasFocus())) {

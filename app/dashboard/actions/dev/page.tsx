@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-interface Person { id: string; name: string; email: string; role: string; disabled: boolean }
+interface Person { id: string; name: string; email: string; role: string; disabled: boolean; game_notify?: { off: boolean; locked: boolean } }
 interface Feature { key: string; name: string; description: string | null; enabled: boolean; mode: "all" | "only" | "except"; user_ids: string[] }
 interface Report {
   id: string; user_id: string | null; page_path: string; page_title: string | null; message: string;
@@ -31,6 +31,7 @@ interface Data { me: string; people: Person[]; features: Feature[]; reports: Rep
 
 type Tab = "reports" | "features" | "database" | "console";
 const DB_LIMIT = 500 * 1024 * 1024; // Supabase free plan database space
+const CONN_LIMIT = 60; // max_connections on the current Supabase plan
 
 const size = (b: number) => b < 1024 ? `${b} B` : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : b < 1024 ** 3 ? `${(b / 1024 ** 2).toFixed(1)} MB` : `${(b / 1024 ** 3).toFixed(2)} GB`;
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -206,7 +207,7 @@ function Features({ data, reload }: { data: Data; reload: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">Choose who sees each feature. Changes reach people the next time a page loads.</p>
-      {data.features.map((f) => {
+      {data.features.filter((f) => f.key !== "game_sounds_off").map((f) => {
         const picked = new Set(f.user_ids);
         const reach = !f.enabled ? 0 : f.mode === "all" ? active.length : f.mode === "only" ? active.filter((p) => picked.has(p.id)).length : active.filter((p) => !picked.has(p.id)).length;
         return (
@@ -239,6 +240,8 @@ function Features({ data, reload }: { data: Data; reload: () => void }) {
                 )}
               </div>
             )}
+            {f.key === "draw_guess" && <GameSounds off={!!data.features.find((x) => x.key === "game_sounds_off")?.enabled} reload={reload} />}
+            {f.key === "draw_guess" && <GameNotifications people={active.filter((p) => featureOnFor(f, p.id))} reload={reload} />}
             {f.enabled && f.mode !== "all" && editing === f.key && (
               <div className="mt-3 grid gap-1 rounded-lg border p-2 sm:grid-cols-2">
                 {active.map((p) => (
@@ -260,6 +263,61 @@ function Features({ data, reload }: { data: Data; reload: () => void }) {
   );
 }
 
+const featureOnFor = (f: Feature, id: string) => f.enabled && (f.mode === "all" || (f.mode === "only" ? f.user_ids.includes(id) : !f.user_ids.includes(id)));
+
+/** One switch for every player's game sounds (chimes, jingle, in-game effects). */
+function GameSounds({ off, reload }: { off: boolean; reload: () => void }) {
+  async function set(on: boolean) {
+    try { await post({ action: "game_sounds", on }); toast.success(on ? "Game sounds on for everyone" : "Game sounds off for everyone"); reload(); }
+    catch (e) { toast.error((e as Error).message); }
+  }
+  return (
+    <div className="mt-3 flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+      <div>
+        <p className="font-medium">Game sounds</p>
+        <p className="text-xs text-muted-foreground">Chimes, the jingle and in-game sounds, for everyone. Popups still show when this is off.</p>
+      </div>
+      <Switch checked={!off} onCheckedChange={set} aria-label="Game sounds for everyone" />
+    </div>
+  );
+}
+
+/** Game popups per person: see who turned them off, turn them back on, lock them on. */
+function GameNotifications({ people, reload }: { people: Person[]; reload: () => void }) {
+  const [open, setOpen] = useState(false);
+  const off = people.filter((p) => p.game_notify?.off).length;
+  async function set(id: string, patch: { off?: boolean; locked?: boolean }) {
+    try { await post({ action: "game_notify", user_id: id, ...patch }); toast.success("Saved"); reload(); }
+    catch (e) { toast.error((e as Error).message); }
+  }
+  return (
+    <div className="mt-3 rounded-lg border">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm">
+        <span className="font-medium">Game notifications</span>
+        <span className="text-xs text-muted-foreground">{off ? `${off} turned off` : "On for everyone"} · {open ? "Hide" : "Manage"}</span>
+      </button>
+      {open && (
+        <div className="divide-y border-t">
+          {people.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nobody has the game yet.</p>}
+          {people.map((p) => {
+            const g = p.game_notify ?? { off: false, locked: false };
+            return (
+              <div key={p.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className={cn("text-xs", g.off ? "text-amber-600" : "text-muted-foreground")}>{g.off ? "Off (by them)" : g.locked ? "On, locked" : "On"}</span>
+                <Switch checked={!g.off} onCheckedChange={(v) => set(p.id, { off: !v })} aria-label={`Game notifications for ${p.name}`} />
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                  <Checkbox checked={g.locked} onCheckedChange={(v) => set(p.id, { locked: !!v, ...(v ? { off: false } : {}) })} />Lock on
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Database({ db }: { db: Db | null }) {
   if (!db) return <div className="py-20 text-center text-muted-foreground"><FontAwesomeIcon icon={faSpinner} className="h-5 w-5 animate-spin" /></div>;
   if (db.error) return <p className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"><FontAwesomeIcon icon={faCircleExclamation} className="mr-2" />{db.error}</p>;
@@ -271,7 +329,15 @@ function Database({ db }: { db: Db | null }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Whole database" value={size(db.db_bytes)} hint={`${pct.toFixed(1)}% of the 500 MB free plan`} />
         <Stat label="Task Management tables" value={size(taskBytes)} hint={`${db.tables.length} tables`} />
-        <Stat label="Open connections" value={String(db.connections)} hint="Right now" />
+        <div className="rounded-lg border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Open connections</p>
+          <p className="text-lg font-semibold">{db.connections} <span className="text-sm font-normal text-muted-foreground">of {CONN_LIMIT}</span></p>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className={cn("h-full rounded-full", db.connections / CONN_LIMIT >= 0.9 ? "bg-red-500" : db.connections / CONN_LIMIT >= 0.75 ? "bg-amber-500" : "bg-primary")}
+              style={{ width: `${Math.min(100, (db.connections / CONN_LIMIT) * 100)}%` }} />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">Right now · shared by everyone</p>
+        </div>
       </div>
       <div className="rounded-lg border bg-card p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

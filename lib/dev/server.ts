@@ -14,7 +14,9 @@ export interface DevFeature {
   user_ids: string[];
 }
 
-const TTL_MS = 30_000;
+// Switches are always read fresh (one tiny table), so turning a feature on or off takes effect
+// for everyone at once, on every server instance; a cache here would keep showing the old state.
+const TTL_MS = 0;
 let ownerCache: { at: number; owner: string | null } | null = null;
 let featureCache: { at: number; features: DevFeature[] } | null = null;
 
@@ -65,4 +67,12 @@ export function forgetDev() {
 export const PROTECTED_MESSAGE = "This user manages the developer console, so they can't be deactivated or removed. Ask them to move the console to someone else first.";
 export async function isProtectedUser(admin: SupabaseClient, userId: string): Promise<boolean> {
   return (await devOwner(admin)) === userId;
+}
+
+/** Active people of a workspace a feature is on for. */
+export async function featureAudience(admin: SupabaseClient, workspaceId: string, key: string): Promise<string[]> {
+  const f = (await allFeatures(admin)).find((x) => x.key === key);
+  if (!f?.enabled) return [];
+  const { data } = await admin.from("profiles").select("user_id").eq("workspace_id", workspaceId).eq("disabled", false);
+  return (data ?? []).map((p) => p.user_id as string).filter((id) => featureOn(f, id));
 }

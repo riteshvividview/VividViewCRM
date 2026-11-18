@@ -45,3 +45,6 @@ DEMO-LOGINS.local.md
 RUN-ME-*.sql
 /*.sql
 .claude/
+
+# local-only: image prompts for the game
+*.local.html

@@ -46,6 +46,10 @@ export function useNotifications(onNew?: (fresh: Notification[]) => void) {
     // Live: the server pings this channel. The slow check runs only while that connection is down.
     let live = false, connectedBefore = false;
     const channel = supabase.channel(`user-notify:${userId}`).on("broadcast", { event: "new" }, () => { load(); })
+      // Game popups ride the same channel; the game announcer picks them up.
+      .on("broadcast", { event: "game" }, (m) => { window.dispatchEvent(new CustomEvent("vv:game", { detail: m.payload })); })
+      // The developer changed a switch: re-read what this person may see.
+      .on("broadcast", { event: "refresh" }, () => { window.dispatchEvent(new Event("vv:refresh")); })
       .subscribe((status) => {
         const was = live;
         live = status === "SUBSCRIBED";

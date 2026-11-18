@@ -223,3 +223,18 @@ export const ShieldX = fa(s.faUserShield);
 export const LogIn = fa(s.faRightToBracket);
 export const LogOut = fa(s.faRightFromBracket);
 export const LifeBuoy = fa(r.faLifeRing);
+
+// Draw and Guess
+export const Gamepad2 = fa(s.faGamepad);
+export const PaintBrush = fa(s.faPaintbrush);
+export const EraserIcon = fa(s.faEraser);
+export const UndoIcon = fa(s.faRotateLeft);
+export const TrashCanIcon = fa(s.faTrashCan);
+export const VolumeOn = fa(s.faVolumeHigh);
+export const VolumeOff = fa(s.faVolumeXmark);
+export const CrownIcon = fa(s.faCrown);
+export const PencilIcon = fa(s.faPencil);
+export const BellOff = fa(s.faBellSlash);
+export const HandWave = fa(s.faHandsClapping);
+export const HandIcon = fa(s.faHand);
+export const LockIcon = fa(s.faLock);

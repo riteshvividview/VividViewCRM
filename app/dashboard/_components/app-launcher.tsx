@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { ArrowUpRight, Users, CircleCheck, Handshake, Receipt, ShieldCheck, Sparkles } from "@/components/shared/fa-icons";
-import { useShellProfile, useAllowedModuleIds } from "@/lib/supabase/profile-context";
+import { useShellProfile, useAllowedModuleIds, useFeature } from "@/lib/supabase/profile-context";
 import { getAllowedApps, getComingSoonApps, getAppHome, type AppId, type ModuleId } from "@/lib/rbac/modules";
 import { cn } from "@/lib/utils";
+import { GameTile } from "@/components/game/game-tile";
 
 const ICONS: Record<string, React.ElementType> = { Users, CircleCheck, Handshake, Receipt, ShieldCheck };
 
@@ -30,6 +31,7 @@ export function AppLauncher() {
   const apps = useMemo(() => getAllowedApps(allowed), [allowed]);
   const soon = useMemo(() => getComingSoonApps(allowed), [allowed]);
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
+  const game = useFeature("draw_guess");
 
   return (
     <div className="space-y-8">
@@ -117,6 +119,7 @@ export function AppLauncher() {
               </div>
             );
           })}
+          {game && <GameTile delay={(apps.length + soon.length) * 70} />}
         </div>
       </div>
     </div>

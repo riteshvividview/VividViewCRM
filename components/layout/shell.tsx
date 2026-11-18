@@ -9,6 +9,7 @@ import { ProfileProvider } from "@/lib/supabase/profile-context";
 import { OfflineScreen } from "@/components/shared/offline-screen";
 import { AccountSync } from "./account-sync";
 import { ReportProblem } from "./report-problem";
+import { GameAnnouncer } from "@/components/game/game-announcer";
 import { Suspense } from "react";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/types";
@@ -47,6 +48,7 @@ export function Shell({ children, profile, allowedModuleIds }: ShellProps) {
       <OfflineScreen />
       <AccountSync />
       <Suspense fallback={null}><ReportProblem /></Suspense>
+      <GameAnnouncer />
       <div className="flex h-screen overflow-hidden bg-background" data-app={currentApp || undefined}>
         {/* Desktop sidebar */}
         <div className="hidden md:flex">

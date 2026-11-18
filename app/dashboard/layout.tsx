@@ -87,7 +87,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const allowedModuleIds = Array.from(effectiveModules) as ModuleId[];
 
   const { isDeveloper, featuresFor } = await import("@/lib/dev/server");
-  const [isDev, features] = await Promise.all([isDeveloper(supabaseAdmin, user.id), featuresFor(supabaseAdmin, user.id)]);
+  const [isDev, allowed] = await Promise.all([isDeveloper(supabaseAdmin, user.id), featuresFor(supabaseAdmin, user.id)]);
+  // Game settings only reach people the game is on for (nobody else even sees their names).
+  const features = allowed.filter((k) => !k.startsWith("game_") || allowed.includes("draw_guess"));
   // The console is for its owner only; anyone else gets a plain "not found".
 
   // Route-level access check using x-pathname injected by middleware
@@ -98,7 +100,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const { notFound } = await import("next/navigation");
     notFound();
   }
-  if (pathname && !canAccessRoute(effectiveModules, pathname)) {
+  // Draw and Guess: only for people the developer switched it on for; everyone else gets a plain "not found".
+  const isGame = pathname === "/dashboard/games" || pathname.startsWith("/dashboard/games/");
+  if (isGame && !features.includes("draw_guess")) {
+    const { notFound } = await import("next/navigation");
+    notFound();
+  }
+  if (pathname && !isGame && !canAccessRoute(effectiveModules, pathname)) {
     redirect("/dashboard/access-denied");
   }
 
