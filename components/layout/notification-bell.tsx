@@ -32,6 +32,7 @@ const TYPE_CONFIG: Record<NotificationType, { icon: IconDefinition; color: strin
   leave_request:                  { icon: faCalendarDays,  color: "text-muted-foreground" },
   leave_decision:                 { icon: faCalendarCheck, color: "text-muted-foreground" },
   hr_request:                     { icon: faFilePen,       color: "text-muted-foreground" },
+  report_resolved:                { icon: faCircleCheck,   color: "text-emerald-500" },
 };
 
 function timeAgo(iso: string) {

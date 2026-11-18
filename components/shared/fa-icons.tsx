@@ -132,6 +132,7 @@ export const ListChecks = fa(s.faListCheck);
 export const ListPlus = fa(s.faListUl);
 export const Palette = fa(s.faPalette);
 export const Code2 = fa(s.faCode);
+export const Bug = fa(s.faBug);
 
 // Layout and navigation
 export const Home = fa(s.faHouse);

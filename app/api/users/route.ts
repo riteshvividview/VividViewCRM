@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminClient, forbidden, getCeo } from "./_lib/access";
+import { devOwner } from "@/lib/dev/server";
 
 /** The people of the CEO's workspace (never other workspaces). */
 export async function GET() {
@@ -23,6 +24,7 @@ export async function GET() {
       if ((data?.users?.length ?? 0) < 1000) break;
     }
 
+    const owner = await devOwner(admin);
     const users = (profiles ?? []).map((p) => {
       const a = emails.get(p.user_id);
       return {
@@ -38,6 +40,8 @@ export async function GET() {
         setup: a?.pending ? "invited" : a?.must_change ? "temp_password" : "done",
         two_factor: a?.two_factor ?? false,
         google: a?.google ?? false,
+        // Manages the developer console: can't be deactivated or removed until it's moved.
+        console_owner: p.user_id === owner,
       };
     });
     return NextResponse.json(users);

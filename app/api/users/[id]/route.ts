@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import type { UserRole } from "@/types";
 import { adminClient, forbidden, getCeo, notFound, setAccountActive, targetProfile } from "../_lib/access";
 import { forgetProfile } from "@/lib/auth/fast";
+import { isProtectedUser, PROTECTED_MESSAGE } from "@/lib/dev/server";
 
 const VALID_ROLES: UserRole[] = ["super_admin", "hr", "team_lead", "employee"];
 
@@ -31,6 +32,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       forgetProfile(id);
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    if (body.disabled === true && (await isProtectedUser(admin, id))) {
+      return NextResponse.json({ error: PROTECTED_MESSAGE }, { status: 400 });
+    }
     if (body.disabled !== undefined) {
       const err = await setAccountActive(admin, id, !body.disabled);
       if (err) return NextResponse.json({ error: err }, { status: 400 });
@@ -51,6 +55,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     if (id === ceo.userId) return NextResponse.json({ error: "You cannot deactivate your own account" }, { status: 400 });
     const admin = adminClient();
     if (!(await targetProfile(admin, ceo, id))) return notFound();
+    if (await isProtectedUser(admin, id)) return NextResponse.json({ error: PROTECTED_MESSAGE }, { status: 400 });
     const err = await setAccountActive(admin, id, false);
     if (err) return NextResponse.json({ error: err }, { status: 400 });
     return NextResponse.json({ success: true });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isProtectedUser, PROTECTED_MESSAGE } from "@/lib/dev/server";
 import { adminClient, forbidden, getCeo, notFound, setAccountActive, targetProfile } from "../../_lib/access";
 
 // Permanently removes a user's HR employee record (if any) — cascading to
@@ -15,6 +16,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     if (id === ceo.userId) return NextResponse.json({ error: "You cannot remove your own account" }, { status: 400 });
     const supabaseAdmin = adminClient();
     if (!(await targetProfile(supabaseAdmin, ceo, id))) return notFound();
+    if (await isProtectedUser(supabaseAdmin, id)) return NextResponse.json({ error: PROTECTED_MESSAGE }, { status: 400 });
 
     const { data: employee } = await supabaseAdmin.from("hr_employees").select("id")
       .eq("user_id", id).eq("workspace_id", ceo.workspaceId).maybeSingle();

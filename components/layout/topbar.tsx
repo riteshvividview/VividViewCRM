@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCloudMoon, faSunPlantWilt } from "@fortawesome/free-solid-svg-icons";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu, LayoutGrid } from "@/components/shared/fa-icons";
+import { Search, Moon, Sun, LogOut, User, Settings, ChevronRight, Menu, LayoutGrid, Code2 } from "@/components/shared/fa-icons";
 import { APPS, getAppForPath, getAppHome } from "@/lib/rbac/modules";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
@@ -20,7 +20,7 @@ import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Profile, UserRole } from "@/types";
 import { getNavGroups } from "./nav-config";
-import { useAllowedModuleIds } from "@/lib/supabase/profile-context";
+import { useAllowedModuleIds, useIsDeveloper } from "@/lib/supabase/profile-context";
 import type { ModuleId } from "@/lib/rbac/modules";
 import { useMemo } from "react";
 import Link from "next/link";
@@ -75,6 +75,7 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
 
   useEffect(() => setMounted(true), []);
 
+  const isDev = useIsDeveloper();
   const displayName = profile?.full_name?.trim()
     || profile?.email?.split("@")[0]
     || "User";
@@ -207,6 +208,13 @@ export function Topbar({ profile, onMenuOpen }: TopbarProps) {
                 <Settings className="h-4 w-4 mr-2" />Settings
               </Link>
             </DropdownMenuItem>
+            {isDev && (
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/actions/dev" className="cursor-pointer">
+                  <Code2 className="h-4 w-4 mr-2" />Developer console
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="h-4 w-4 mr-2" />Sign out

@@ -9,6 +9,10 @@ export interface Profile {
   email: string;
   created_at: string;
   workspace_id: string | null;
+  /** Owns the developer console (never shown to anyone else). */
+  is_developer?: boolean;
+  /** Developer-console feature keys this person may use. */
+  features?: string[];
 }
 
 export interface Workspace {

@@ -1,3 +1,4 @@
+import { isProtectedUser, PROTECTED_MESSAGE } from "@/lib/dev/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
@@ -67,6 +68,9 @@ export async function DELETE(
     }
     if (employee.workspace_id !== callerProfile.workspace_id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (employee.user_id && (await isProtectedUser(supabaseAdmin, employee.user_id))) {
+      return NextResponse.json({ error: PROTECTED_MESSAGE }, { status: 400 });
     }
     if (employee.user_id === user.id) {
       return NextResponse.json({ error: "You cannot remove your own employee record" }, { status: 400 });

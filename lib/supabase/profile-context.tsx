@@ -34,6 +34,15 @@ export function useShellProfile(): Profile | null {
   return useContext(ProfileContext).profile;
 }
 
+/** Whether a developer-console feature is on for the signed-in person. */
+export function useFeature(key: string): boolean {
+  return !!useContext(ProfileContext).profile?.features?.includes(key);
+}
+
+export function useIsDeveloper(): boolean {
+  return !!useContext(ProfileContext).profile?.is_developer;
+}
+
 export function useAllowedModuleIds(): ModuleId[] {
   return useContext(ProfileContext).allowedModuleIds;
 }

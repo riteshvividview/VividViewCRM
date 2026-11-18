@@ -86,10 +86,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
   const allowedModuleIds = Array.from(effectiveModules) as ModuleId[];
 
+  const { isDeveloper, featuresFor } = await import("@/lib/dev/server");
+  const [isDev, features] = await Promise.all([isDeveloper(supabaseAdmin, user.id), featuresFor(supabaseAdmin, user.id)]);
+  // The console is for its owner only; anyone else gets a plain "not found".
+
   // Route-level access check using x-pathname injected by middleware
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
 
+  if ((pathname === "/dashboard/actions/dev" || pathname.startsWith("/dashboard/actions/dev/")) && !isDev) {
+    const { notFound } = await import("next/navigation");
+    notFound();
+  }
   if (pathname && !canAccessRoute(effectiveModules, pathname)) {
     redirect("/dashboard/access-denied");
   }
@@ -103,6 +111,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     email: user.email ?? "",
     created_at: profile?.created_at ?? new Date().toISOString(),
     workspace_id: profile?.workspace_id ?? null,
+    is_developer: isDev,
+    features,
   };
 
   return (

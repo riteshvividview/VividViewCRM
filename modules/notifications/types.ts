@@ -11,7 +11,8 @@ export type NotificationType =
   | "attendance_monthly_processed"
   | "leave_request"
   | "leave_decision"
-  | "hr_request";
+  | "hr_request"
+  | "report_resolved";
 
 export interface Notification {
   id: string;

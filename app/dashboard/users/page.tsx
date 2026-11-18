@@ -6,7 +6,7 @@ import {
   Puzzle, Trash2, Eye, EyeOff,
 } from "@/components/shared/fa-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEnvelope, faKey, faMobileScreen, faWandMagicSparkles } from "@fortawesome/free-solid-svg-icons";
+import { faEnvelope, faKey, faMobileScreen, faWandMagicSparkles, faCode } from "@fortawesome/free-solid-svg-icons";
 import { faGoogle } from "@fortawesome/free-brands-svg-icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MODULES } from "@/lib/rbac/modules";
@@ -42,6 +42,18 @@ interface UserRow {
   setup: "invited" | "temp_password" | "done";
   two_factor: boolean;
   google: boolean;
+  console_owner?: boolean;
+}
+
+const CONSOLE_MESSAGE = "This user manages the developer console, so they can't be deactivated or removed. Ask them to move the console to someone else first.";
+
+function ConsoleBadge({ user }: { user: UserRow }) {
+  if (!user.console_owner) return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" title="Manages the developer console">
+      <FontAwesomeIcon icon={faCode} className="h-2.5 w-2.5" />Managing console
+    </span>
+  );
 }
 
 interface TeamOption { id: string; name: string; color: string | null }
@@ -206,6 +218,7 @@ export default function UsersPage() {
   }
 
   async function handleToggleDisabled(userId: string, disabled: boolean) {
+    if (disabled && users.find((u) => u.id === userId)?.console_owner) { toast.error(CONSOLE_MESSAGE); return; }
     const res = await fetch(`/api/users/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -215,7 +228,7 @@ export default function UsersPage() {
       setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, disabled } : u));
       toast.success(disabled ? "User deactivated" : "User reactivated");
     } else {
-      toast.error("Failed to update user");
+      toast.error((await res.json().catch(() => ({}))).error ?? "Failed to update user");
     }
   }
 
@@ -300,6 +313,7 @@ export default function UsersPage() {
                             <Shield className="h-3 w-3" />
                             {rc.label}
                           </span>
+                          <div className="mt-1"><ConsoleBadge user={user} /></div>
                         </td>
                         <td className="px-6 py-4">
                           <StatusBadge user={user} />
@@ -316,7 +330,7 @@ export default function UsersPage() {
                             onRoleChange={handleRoleChange}
                             onToggleDisabled={handleToggleDisabled}
                             onManageModules={openModulesDialog}
-                            onRemove={setRemoveTarget}
+                            onRemove={(u) => (u.console_owner ? toast.error(CONSOLE_MESSAGE) : setRemoveTarget(u))}
                             onHelp={helpAccess}
                             busy={helpBusy === user.id}
                           />
@@ -347,6 +361,7 @@ export default function UsersPage() {
                         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold", rc.color)}>
                           <Shield className="h-3 w-3" />{rc.label}
                         </span>
+                        <ConsoleBadge user={user} />
                         <StatusBadge user={user} />
                       </div>
                     </div>
@@ -355,7 +370,7 @@ export default function UsersPage() {
                       onRoleChange={handleRoleChange}
                       onToggleDisabled={handleToggleDisabled}
                       onManageModules={openModulesDialog}
-                      onRemove={setRemoveTarget}
+                      onRemove={(u) => (u.console_owner ? toast.error(CONSOLE_MESSAGE) : setRemoveTarget(u))}
                       onHelp={helpAccess}
                       busy={helpBusy === user.id}
                     />
