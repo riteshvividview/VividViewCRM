@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner, faMobileScreen, faDesktop, faCircle, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { faSpinner, faMobileScreen, faDesktop, faCircle, faEye, faEyeSlash, faKey } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +118,43 @@ function PasswordCard() {
 
 // ── Two-factor ───────────────────────────────────────────────────────────────
 /** Authenticator-app 2FA (TOTP). Once on, signing in asks for a 6-digit code after the password. */
+/** The 10 backup codes, shown once: copy, download or print, then confirm they're saved. */
+function BackupCodesDialog({ codes, onClose }: { codes: string[] | null; onClose: () => void }) {
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { if (codes) setSaved(false); }, [codes]);
+  const text = codes ? `Vivid View backup codes\nEach code works once. Keep them somewhere safe.\n\n${codes.join("\n")}\n` : "";
+  function download() {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+    a.download = "vivid-view-backup-codes.txt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setSaved(true);
+  }
+  return (
+    <Dialog open={!!codes} onOpenChange={(o) => { if (!o && saved) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Save your backup codes</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">If you lose your phone, sign in with one of these instead of the app code. Each works once. They won&apos;t be shown again.</p>
+        <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-3 font-mono text-sm">
+          {(codes ?? []).map((c) => <span key={c} className="text-center tracking-wider">{c}</span>)}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => { navigator.clipboard.writeText(text).then(() => { setSaved(true); toast.success("Copied"); }, () => toast.error("Couldn't copy")); }}>Copy</Button>
+          <Button variant="outline" size="sm" className="flex-1" onClick={download}>Download</Button>
+        </div>
+        <DialogFooter>
+          <Button className="w-full" disabled={!saved} onClick={onClose}>{saved ? "I've saved them" : "Copy or download them first"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TwoFactorCard() {
+  const isCeo = useShellProfile()?.role === "super_admin";
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
   const [factorId, setFactorId] = useState<string | null | undefined>(undefined); // undefined = loading
   const [enroll, setEnroll] = useState<{ id: string; qr: string; secret: string } | null>(null);
   const [code, setCode] = useState("");
@@ -126,7 +163,15 @@ function TwoFactorCard() {
   const load = useCallback(async () => {
     const { data } = await createClient().auth.mfa.listFactors();
     setFactorId(data?.totp?.[0]?.id ?? null);
+    const r = await fetch("/api/auth/backup-codes", { cache: "no-store" }).catch(() => null);
+    if (r?.ok) setLeft((await r.json()).left ?? 0);
   }, []);
+  async function makeCodes() {
+    const r = await fetch("/api/auth/backup-codes", { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast.error(j.error ?? "Could not make backup codes"); return; }
+    setCodes(j.codes); setLeft(j.codes.length);
+  }
   useEffect(() => { load(); }, [load]);
 
   async function start() {
@@ -151,7 +196,8 @@ function TwoFactorCard() {
       if (error) { toast.error("That code is not right. Check the app and try again."); return; }
       toast.success("Two-factor sign-in is on");
       setEnroll(null);
-      load();
+      await load();
+      await makeCodes(); // shown once, right away
     } finally { setBusy(false); }
   }
 
@@ -167,6 +213,7 @@ function TwoFactorCard() {
     const { error } = await createClient().auth.mfa.unenroll({ factorId });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
+    await fetch("/api/auth/backup-codes", { method: "DELETE" }).catch(() => {});
     toast.success("Two-factor sign-in is off");
     load();
   }
@@ -188,7 +235,20 @@ function TwoFactorCard() {
           ? <Button variant="outline" size="sm" disabled={busy} onClick={disable}>Disable</Button>
           : <Button variant="outline" size="sm" disabled={busy} onClick={start}>{busy && <FontAwesomeIcon icon={faSpinner} spin className="mr-2 h-3 w-3" />}Enable</Button>)}
       </div>
-      {on && <p className="mt-2 text-xs text-muted-foreground">If you lose the phone with your authenticator app, ask the CEO to reset two-factor on your account.</p>}
+      {on && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border p-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FontAwesomeIcon icon={faKey} className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Backup codes</p>
+            <p className="text-xs text-muted-foreground">{left === null ? "Checking" : left > 0 ? `${left} of 10 left. Use one if you lose your phone.` : "None yet. Make some in case you lose your phone."}</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => { if (!left || window.confirm("Make new backup codes? Your old codes will stop working.")) void makeCodes(); }}>{left ? "Get new codes" : "Make codes"}</Button>
+        </div>
+      )}
+      {on && <p className="mt-2 text-xs text-muted-foreground">{isCeo
+        ? "If you lose your phone, sign in with a backup code, or ask another CEO to reset two-factor for you in User Management."
+        : "If you lose your phone, sign in with a backup code, or ask the CEO to reset two-factor on your account."}</p>}
+      <BackupCodesDialog codes={codes} onClose={() => setCodes(null)} />
 
       <Dialog open={!!enroll} onOpenChange={(o) => { if (!o && !busy) cancelEnroll(); }}>
         <DialogContent className="sm:max-w-sm">

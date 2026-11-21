@@ -41,7 +41,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { data: factors, error } = await db.auth.admin.mfa.listFactors({ userId: id });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     for (const f of factors?.factors ?? []) await db.auth.admin.mfa.deleteFactor({ userId: id, id: f.id });
-    await setFlags(db, id, {});
+    // Their old backup codes belonged to the removed authenticator.
+    await setFlags(db, id, { backup_codes: null, backup_codes_at: null, backup_fails: 0, backup_failed_at: 0 });
     return NextResponse.json({ ok: true, removed: factors?.factors?.length ?? 0 });
   }
 

@@ -14,6 +14,8 @@ export default function MfaPage() {
   const [factorId, setFactorId] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [useBackup, setUseBackup] = useState(false);
+  const [backup, setBackup] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -37,6 +39,19 @@ export default function MfaPage() {
     window.location.href = "/dashboard";
   }
 
+  async function useBackupCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || backup.replace(/[^A-Za-z0-9]/g, "").length !== 8) return;
+    setBusy(true);
+    const r = await fetch("/api/auth/backup-codes/use", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: backup }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setBusy(false); toast.error(j.error ?? "That code isn't right"); return; }
+    // The lost authenticator is removed: refresh the sign-in and carry on, then set up the new phone.
+    await createClient().auth.refreshSession();
+    toast.success("Backup code accepted. Set up two-factor on your new phone.");
+    window.location.href = "/dashboard/settings?tab=security";
+  }
+
   async function cancel() {
     await createClient().auth.signOut();
     window.location.href = "/auth/login";
@@ -51,13 +66,23 @@ export default function MfaPage() {
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">Two-factor sign-in</h2>
           <p className="mt-1 text-sm text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
         </div>
-        {factorId ? (
+        {factorId && useBackup ? (
+          <form onSubmit={useBackupCode} className="space-y-4">
+            <Input autoFocus autoComplete="off" value={backup} onChange={(e) => setBackup(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 9))}
+              placeholder="XXXX-XXXX" className="h-12 text-center font-mono text-xl font-semibold tracking-[0.3em]" />
+            <Button type="submit" className="h-11 w-full" disabled={busy || backup.replace(/[^A-Z0-9]/g, "").length !== 8}>
+              {busy && <FontAwesomeIcon icon={faSpinner} spin className="mr-2 h-3.5 w-3.5" />}Use backup code
+            </Button>
+            <button type="button" onClick={() => setUseBackup(false)} className="block w-full text-center text-xs text-muted-foreground hover:text-foreground">Use the app code instead</button>
+          </form>
+        ) : factorId ? (
           <form onSubmit={verify} className="space-y-4">
             <Input autoFocus inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="000000" className="h-12 text-center text-xl font-semibold tracking-[0.5em]" />
             <Button type="submit" className="h-11 w-full" disabled={busy || code.length < 6}>
               {busy && <FontAwesomeIcon icon={faSpinner} spin className="mr-2 h-3.5 w-3.5" />}Verify
             </Button>
+            <button type="button" onClick={() => setUseBackup(true)} className="block w-full text-center text-xs font-medium text-primary hover:underline">Lost your phone? Use a backup code</button>
             <button type="button" onClick={cancel} className="block w-full text-center text-xs text-muted-foreground hover:text-foreground">Sign in with a different account</button>
           </form>
         ) : (
