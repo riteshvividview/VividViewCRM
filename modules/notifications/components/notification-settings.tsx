@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { faBell, faComment, faCircleCheck, faMessage, faTrashCan } from "@fortawesome/free-regular-svg-icons";
-import { faArrowRightArrowLeft, faListCheck, faAt, faTriangleExclamation, faVolumeHigh, faDesktop, faCheck } from "@fortawesome/free-solid-svg-icons";
+import { faArrowRightArrowLeft, faListCheck, faAt, faTriangleExclamation, faVolumeHigh, faDesktop, faCheck, faCirclePause, faCalendarWeek, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,17 @@ const ROWS: { key: NotificationCategory; label: string; desc: string; icon: Icon
   { key: "task_mentions", label: "Mentions", desc: "When someone @mentions you in a task chat", icon: faAt },
 ];
 
+/** The CEO doesn't get tasks: he hears about the whole workspace instead. */
+const CEO_ROWS: { key: NotificationCategory; label: string; desc: string; icon: IconDefinition }[] = [
+  { key: "task_mentions", label: "Mentions", desc: "When someone @mentions you in a task chat", icon: faAt },
+  { key: "task_messages", label: "Chat replies", desc: "New messages in tasks you've chatted in", icon: faComment },
+  { key: "task_on_hold", label: "Task put on hold", desc: "When anyone puts a task on hold, with their reason", icon: faCirclePause },
+  { key: "hold_summary", label: "Weekly on-hold summary", desc: "Every Monday at 10:00, how many tasks are on hold", icon: faCalendarWeek },
+  { key: "ceo_overdue", label: "Daily overdue summary", desc: "Once a day, how many tasks are past their deadline", icon: faTriangleExclamation },
+  { key: "ceo_completed", label: "Task completed", desc: "When anyone completes a task", icon: faCircleCheck },
+  { key: "ceo_created", label: "New task created", desc: "When anyone creates a task (can be a lot)", icon: faPlus },
+];
+
 function Box({ checked, disabled, onChange, label }: { checked: boolean; disabled?: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button type="button" role="checkbox" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)}
@@ -37,6 +49,8 @@ function Box({ checked, disabled, onChange, label }: { checked: boolean; disable
 
 /** Notification preferences: what to be told about, and how. Saved on the account, applied straight away. */
 export function NotificationSettings() {
+  const isCeo = useShellProfile()?.role === "super_admin";
+  const rows = isCeo ? CEO_ROWS : ROWS;
   const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
 
@@ -76,13 +90,13 @@ export function NotificationSettings() {
           <table className="w-full min-w-[460px] text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted-foreground">
-                <th className="pb-3 text-left text-sm font-semibold text-foreground">Task notifications</th>
+                <th className="pb-3 text-left text-sm font-semibold text-foreground">{isCeo ? "Workspace notifications" : "Task notifications"}</th>
                 <th className="w-24 pb-3 text-center font-medium">In-app</th>
                 <th className={cn("w-28 pb-3 text-center font-medium", !browserReady && "text-amber-600 dark:text-amber-400")} title={browserReady ? undefined : "Enable browser notifications below first"}>Browser alerts</th>
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.key} className="border-b border-border last:border-0">
                   <td className="py-3 pr-3">
                     <span className="flex items-center gap-3">

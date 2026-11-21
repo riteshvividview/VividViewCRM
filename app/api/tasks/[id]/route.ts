@@ -1,3 +1,4 @@
+import { notifyCeos } from "../_lib/ceo-notify";
 import { heldResponse } from "../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -214,6 +215,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         && ("planned_date" in updates || "due_date" in updates);
       if (completed) {
         await notifyUsers(admin, ctx.workspaceId, receivers, { type: "task_completed", title: `${who} completed a task`, body: task.title, entity_type: "task", entity_id: id }).catch(() => {});
+        // CEOs hear about every completed task (unless they switched it off).
+        await notifyCeos(admin, ctx.workspaceId, "ceo_completed", { type: "task_completed", title: `${who} completed a task`, body: task.title, entity_type: "task_ceo_completed", entity_id: id }, { except: [ctx.userId, ...receivers] }).catch(() => 0);
       } else {
         await notifyUsers(admin, ctx.workspaceId, receivers, {
           type: "task_assigned",

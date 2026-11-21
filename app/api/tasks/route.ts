@@ -1,3 +1,4 @@
+import { notifyCeos } from "./_lib/ceo-notify";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "./_lib/helpers";
@@ -212,6 +213,11 @@ export async function POST(request: NextRequest) {
   await notifyUsers(admin, ctx.workspaceId, assigneeIds.filter((id) => id !== ctx.userId), {
     type: "task_assigned", title: "New task assigned", body: title, entity_type: "task", entity_id: task.id,
   }).catch(() => {});
+  // CEOs who asked to hear about every new task.
+  const { data: creator } = await admin.from("profiles").select("full_name").eq("user_id", ctx.userId).maybeSingle();
+  await notifyCeos(admin, ctx.workspaceId, "ceo_created", {
+    type: "task_assigned", title: `${creator?.full_name ?? "Someone"} created a task`, body: title, entity_type: "task_ceo_created", entity_id: task.id,
+  }, { except: [ctx.userId] }).catch(() => 0);
 
   const [serialized] = await attachRelations(admin, [task as RawTask]);
   return NextResponse.json({ task: serialized });

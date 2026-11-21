@@ -5,6 +5,7 @@ import { purgeExpiredFiles } from "../_lib/files";
 import { hideTrashed, purgeExpiredTrash, trashReady } from "../_lib/trash";
 import { getTaskSettings, purgeOldNotifications } from "../_lib/settings";
 import { maybeSendHoldDigest } from "../_lib/hold";
+import { notifyCeos } from "../_lib/ceo-notify";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -51,6 +52,20 @@ export async function POST() {
   // Tasks in the trash longer than the CEO's setting are removed for good.
   await purgeExpiredTrash(admin, ctx.workspaceId, settings.trash_days).catch(() => 0);
   await purgeOldNotifications(admin, ctx.workspaceId, settings.notif_read_days, settings.notif_unread_days).catch(() => 0);
+  // CEO: once a day, how many tasks across the workspace are past their deadline.
+  if (ctx.role === "super_admin") {
+    const { count: sentToday } = await admin.from("notifications").select("id", { count: "exact", head: true })
+      .eq("user_id", ctx.userId).eq("entity_type", "ceo_overdue").gte("created_at", `${today}T00:00:00`);
+    if (!sentToday) {
+      const { count: overdue } = await hideTrashed(admin.from("tasks").select("id", { count: "exact", head: true }), await trashReady(admin))
+        .eq("workspace_id", ctx.workspaceId).neq("status", "done").is("hold_at", null).lt("due_date", today);
+      if (overdue) {
+        await notifyCeos(admin, ctx.workspaceId, "ceo_overdue", {
+          type: "task_due", title: `${overdue} task${overdue === 1 ? " is" : "s are"} overdue`, body: "Open Reports to see which ones and who they belong to.", entity_type: "ceo_overdue",
+        }, { only: ctx.userId }).catch(() => 0);
+      }
+    }
+  }
   // Monday from 10:00 IST: the CEOs' weekly "tasks on hold" summary (sent once a week).
   await maybeSendHoldDigest(admin, ctx.workspaceId).catch(() => false);
   return NextResponse.json({ reminders });

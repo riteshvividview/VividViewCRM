@@ -92,6 +92,7 @@ export function NotificationBell() {
     markRead(n.id);
     if (n.entity_type === "task_deleted") return; // the task no longer exists
     if (n.entity_type === "hold_list") { setOpen(false); router.push("/dashboard/actions/on-hold"); return; }
+    if (n.entity_type === "ceo_overdue") { setOpen(false); router.push("/dashboard/actions/reports"); return; }
     if (n.entity_type?.startsWith("task") && n.entity_id) {
       setOpen(false);
       // A full navigation, so the Tasks app opens this task from the ?task= link.

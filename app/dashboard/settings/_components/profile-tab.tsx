@@ -200,7 +200,7 @@ export function ProfileTab() {
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5 text-sm">
         <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 font-medium"><FontAwesomeIcon icon={faShieldHalved} className="h-3 w-3 text-muted-foreground" />{ROLE_LABEL[role] ?? role}</span>
-        <span className="text-muted-foreground">Your email and role are managed by the CEO.</span>
+        <span className="text-muted-foreground">{role === "super_admin" ? "Emails and roles are managed in User Management." : "Your email and role are managed by the CEO."}</span>
         {since && <span className="text-muted-foreground">Member since {formatDay(new Date(since), { year: true, month: "long" })}</span>}
       </div>
     </form>

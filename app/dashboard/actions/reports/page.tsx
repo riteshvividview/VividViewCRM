@@ -139,7 +139,7 @@ export default function ReportsPage() {
                     <XAxis dataKey="day" tickFormatter={short} tick={{ fontSize: 11, fill: "var(--axis)" }} axisLine={false} tickLine={false} minTickGap={24} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--axis)" }} axisLine={false} tickLine={false} />
                     <Tooltip {...tip} labelFormatter={(d) => short(String(d))} />
-                    <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+                    <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} itemSorter={null} />
                     <Line type="monotone" dataKey="created" name="Created" stroke="var(--s1)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                     <Line type="monotone" dataKey="completed" name="Completed" stroke="var(--s2)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                   </LineChart>
@@ -175,7 +175,7 @@ export default function ReportsPage() {
                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--axis)" }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 12, fill: "currentColor" }} axisLine={false} tickLine={false} />
                     <Tooltip {...tip} cursor={{ fill: "rgba(120,120,120,.08)" }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} itemSorter={null} />
                     <Bar dataKey="open" name="Open" stackId="a" fill="var(--s1)" stroke="var(--card, #fff)" strokeWidth={2} />
                     <Bar dataKey="overdue" name="Overdue" stackId="a" fill="var(--s2)" stroke="var(--card, #fff)" strokeWidth={2} />
                     <Bar dataKey="on_hold" name="On hold" stackId="a" fill="var(--s3)" stroke="var(--card, #fff)" strokeWidth={2} radius={[0, 4, 4, 0]} />

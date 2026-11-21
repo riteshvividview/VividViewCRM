@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { applyAccent, ACCENT_KEY, type AccentColor } from "@/components/shared/theme-accent-provider";
 import { DEFAULT_USER_PREFS, TIME_ZONES, USER_PREFS_EVENT, getUserPrefs, saveUserPrefs, type UserPrefs } from "@/lib/user-prefs";
 import { cn } from "@/lib/utils";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 
 const ACCENT_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
   { value: "purple", label: "Violet", hex: "#7c3aed" },
@@ -43,6 +44,7 @@ function Choice<T extends string>({ value, onChange, options }: { value: T; onCh
 
 /** Time zone, theme, date / time format and first day of the week. Saved on the account. */
 export function PreferencesTab() {
+  const isCeo = useShellProfile()?.role === "super_admin";
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [prefs, setPrefs] = useState<UserPrefs>(DEFAULT_USER_PREFS);
@@ -115,7 +117,7 @@ export function PreferencesTab() {
         <Choice value={prefs.timeFormat} onChange={(v) => update({ timeFormat: v })} options={[{ value: "12", label: "12 hours: 9:00 PM" }, { value: "24", label: "24 hours: 21:00" }]} />
       </Field>
 
-      <Field label="Week starts on" hint="The first column of the Planner, Schedule and Team calendar.">
+      <Field label="Week starts on" hint={isCeo ? "The first column of the Planner and Team calendar." : "The first column of the Planner, Schedule and Team calendar."}>
         <Choice value={prefs.weekStart} onChange={(v) => update({ weekStart: v })} options={[{ value: "monday", label: "Monday" }, { value: "sunday", label: "Sunday" }]} />
       </Field>
     </div>

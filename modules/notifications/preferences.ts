@@ -2,10 +2,13 @@ import type { Notification } from "./types";
 
 /** The kinds of task notification a person can switch on or off. */
 export type NotificationCategory =
-  | "task_assigned" | "task_status" | "task_completed" | "task_deleted" | "task_deadlines" | "task_messages" | "task_mentions";
+  | "task_assigned" | "task_status" | "task_completed" | "task_deleted" | "task_deadlines" | "task_messages" | "task_mentions"
+  // CEO only: the whole workspace, not "your tasks"
+  | "task_on_hold" | "hold_summary" | "ceo_created" | "ceo_completed" | "ceo_overdue";
 
 export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
   "task_assigned", "task_status", "task_completed", "task_deleted", "task_deadlines", "task_messages", "task_mentions",
+  "task_on_hold", "hold_summary", "ceo_created", "ceo_completed", "ceo_overdue",
 ];
 
 /**
@@ -23,6 +26,16 @@ export interface NotificationPrefs {
   task_deadlines: boolean;
   task_completed: boolean;
   task_deleted: boolean;
+  /** CEO: someone put a task on hold. */
+  task_on_hold: boolean;
+  /** CEO: the Monday summary of tasks on hold. */
+  hold_summary: boolean;
+  /** CEO: anyone created a task. */
+  ceo_created: boolean;
+  /** CEO: anyone completed a task. */
+  ceo_completed: boolean;
+  /** CEO: once a day, how many tasks are overdue across the workspace. */
+  ceo_overdue: boolean;
   /** Desktop alerts from the browser while the app is in the background, per category. */
   browser: Record<NotificationCategory, boolean>;
   /** Show the popup in the corner (the bell still collects notifications when off). */
@@ -39,7 +52,15 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   task_deadlines: true,
   task_completed: true,
   task_deleted: true,
-  browser: { task_assigned: true, task_status: false, task_completed: false, task_deleted: false, task_deadlines: false, task_messages: true, task_mentions: true },
+  task_on_hold: true,
+  hold_summary: true,
+  ceo_created: false,
+  ceo_completed: true,
+  ceo_overdue: true,
+  browser: {
+    task_assigned: true, task_status: false, task_completed: false, task_deleted: false, task_deadlines: false, task_messages: true, task_mentions: true,
+    task_on_hold: true, hold_summary: false, ceo_created: false, ceo_completed: false, ceo_overdue: false,
+  },
   popups: true,
   sound: true,
 };
@@ -74,6 +95,12 @@ export function saveNotificationPrefs(prefs: NotificationPrefs) {
 
 /** Which preference a notification falls under (null = always shown, e.g. HR notices). */
 export function notificationCategory(n: Pick<Notification, "type" | "entity_type">): NotificationCategory | null {
+  if (n.entity_type === "task_ceo_created") return "ceo_created";
+  if (n.entity_type === "task_ceo_completed") return "ceo_completed";
+  if (n.entity_type === "ceo_overdue") return "ceo_overdue";
+  if (n.type === "task_on_hold") return "task_on_hold";
+  if (n.type === "hold_digest") return "hold_summary";
+  if (n.type === "task_resumed") return "task_status";
   if (n.type === "mention") return "task_mentions";
   if (n.type === "task_due") return "task_deadlines";
   if (n.type === "task_completed") return "task_completed";
