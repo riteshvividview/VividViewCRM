@@ -11,6 +11,7 @@ import { TaskCard, TASK_DRAG_TYPE } from "./task-card";
 import type { Task } from "../types";
 import { addDays, formatWeekRange, startOfWeek, toISODate, todayISO, weekDays } from "../dates";
 import { cn } from "@/lib/utils";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 
 type Scope = "me" | "all" | string; // string = a member's user id
 
@@ -46,7 +47,9 @@ export function WeeklyPlanner({ projectId, teamId, title = "Planner" }: { projec
   const [hideReminders, setHideReminders] = useState(false);
   const [brand, setBrand] = useState<string>("all");
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const [scope, setScope] = useState<Scope>(projectId || teamId ? "all" : "me");
+  const isCeo = useShellProfile()?.role === "super_admin";
+  // The CEO doesn't do tasks: the planner opens on everyone.
+  const [scope, setScope] = useState<Scope>(projectId || teamId || isCeo ? "all" : "me");
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [showWaiting, setShowWaiting] = useState(false);
   const [colWidth, setColWidth] = useState(240);
@@ -148,7 +151,7 @@ export function WeeklyPlanner({ projectId, teamId, title = "Planner" }: { projec
           {!projectId && <Select value={scope} onValueChange={setScope}>
             <SelectTrigger className="h-8 w-[170px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="me">My tasks</SelectItem>
+              {!isCeo && <SelectItem value="me">My tasks</SelectItem>}
               <SelectItem value="all">Everyone</SelectItem>
               {members.filter((m) => m.id !== currentUserId).map((m) => <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>)}
             </SelectContent>

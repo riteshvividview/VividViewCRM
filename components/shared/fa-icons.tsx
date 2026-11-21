@@ -238,3 +238,4 @@ export const BellOff = fa(s.faBellSlash);
 export const HandWave = fa(s.faHandsClapping);
 export const HandIcon = fa(s.faHand);
 export const LockIcon = fa(s.faLock);
+export const PauseCircle = fa(s.faCirclePause);

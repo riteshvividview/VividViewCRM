@@ -4,6 +4,7 @@ import { notifyUsers } from "../_lib/notify";
 import { purgeExpiredFiles } from "../_lib/files";
 import { hideTrashed, purgeExpiredTrash, trashReady } from "../_lib/trash";
 import { getTaskSettings, purgeOldNotifications } from "../_lib/settings";
+import { maybeSendHoldDigest } from "../_lib/hold";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -24,7 +25,7 @@ export async function POST() {
   const { data: mine } = await admin.from("task_assignees").select("task_id").eq("user_id", ctx.userId);
   const ids = (mine ?? []).map((m) => m.task_id);
   let q = hideTrashed(admin.from("tasks").select("id, title, due_date, priority"), await trashReady(admin))
-    .eq("workspace_id", ctx.workspaceId).neq("status", "done").not("due_date", "is", null).lte("due_date", tomorrow);
+    .eq("workspace_id", ctx.workspaceId).neq("status", "done").is("hold_at", null).not("due_date", "is", null).lte("due_date", tomorrow);
   q = ids.length ? q.or(`assignee_id.eq.${ctx.userId},id.in.(${ids.join(",")})`) : q.eq("assignee_id", ctx.userId);
   const { data: due } = await q.order("due_date").limit(100);
 
@@ -50,5 +51,7 @@ export async function POST() {
   // Tasks in the trash longer than the CEO's setting are removed for good.
   await purgeExpiredTrash(admin, ctx.workspaceId, settings.trash_days).catch(() => 0);
   await purgeOldNotifications(admin, ctx.workspaceId, settings.notif_read_days, settings.notif_unread_days).catch(() => 0);
+  // Monday from 10:00 IST: the CEOs' weekly "tasks on hold" summary (sent once a week).
+  await maybeSendHoldDigest(admin, ctx.workspaceId).catch(() => false);
   return NextResponse.json({ reminders });
 }

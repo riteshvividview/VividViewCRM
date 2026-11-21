@@ -1,3 +1,4 @@
+import { heldResponse } from "../../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
@@ -109,6 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const admin = adminClient();
 
   const { data: task } = await admin.from("tasks").select("id, title, created_by, assignee_id").eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();

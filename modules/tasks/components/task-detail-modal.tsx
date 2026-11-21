@@ -6,6 +6,7 @@ import { faCalendar, faCircleCheck as faCircleCheckRegular, faEye } from "@forta
 import {
   faXmark, faEllipsis, faLink, faTrashCan, faCopy, faAlignLeft, faArrowsRotate, faBullseye, faRotateLeft, faCircleCheck,
   faArrowRightToBracket, faSpinner, faLock, faTableColumns, faWindowRestore, faExpand, faCheck, faUserGroup,
+  faCirclePause, faCirclePlay,
 } from "@fortawesome/free-solid-svg-icons";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,9 @@ import { TypeManagerDialog } from "./type-manager";
 import { initials, overdueText, taskKey } from "../lib/bordio";
 import { PriorityLabel } from "./task-icons";
 import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 
 interface Props {
   task: Task | null;
@@ -85,6 +89,11 @@ export function TaskDetailModal(props: Props) {
   // Completing or reopening waits for the server (it checks the main file), so the button shows a spinner meanwhile.
   const [statusBusy, setStatusBusy] = useState<"complete" | "reopen" | null>(null);
   const [layout, setLayout] = useState<Layout>("standard");
+  // On hold: the reason box, and the busy state while it's saved or resumed.
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [holdReason, setHoldReason] = useState("");
+  const [holdBusy, setHoldBusy] = useState(false);
+  const isCeo = useShellProfile()?.role === "super_admin";
   useEffect(() => {
     try { const v = localStorage.getItem(LAYOUT_KEY) as Layout | null; if (v && v in LAYOUT_CLASS) setLayout(v); } catch {}
   }, []);
@@ -116,7 +125,36 @@ export function TaskDetailModal(props: Props) {
   // Another team's task opened from the Brands tab: view only.
   // Another team's task (from the Brands tab) is view only for good; a completed task until it is reopened.
   const viewOnly = task.can_edit === false;
-  const locked = viewOnly || done;
+  // On hold: nothing can change (files and chat are kept) until a CEO resumes it.
+  const held = !!task.hold_at;
+  const locked = viewOnly || done || (held && !isCeo);
+  const heldBy = held ? members.find((m) => m.id === task.hold_by)?.full_name ?? "Someone" : "";
+  const canHold = !done && !held && !viewOnly && task.can_chat !== false;
+  async function hold() {
+    if (!task) return;
+    const reason = holdReason.trim();
+    if (reason.length < 3) { toast.error("Please give a reason"); return; }
+    setHoldBusy(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/hold`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(j.error ?? "Could not put the task on hold"); return; }
+      toast.success("Task put on hold");
+      setHoldOpen(false); setHoldReason("");
+      onRefresh(task.id);
+    } finally { setHoldBusy(false); }
+  }
+  async function resume() {
+    if (!task) return;
+    setHoldBusy(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/hold`, { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(j.error ?? "Could not resume the task"); return; }
+      toast.success("Task resumed");
+      onRefresh(task.id);
+    } finally { setHoldBusy(false); }
+  }
   // A team task can only be assigned to that team's members.
   const taskTeam = teams.find((t) => t.id === task.team_id) ?? null;
   const canDelete = canDeleteProp && !locked;
@@ -154,6 +192,7 @@ export function TaskDetailModal(props: Props) {
             ) : <span className="truncate">No brand</span>}
             {key && <><span>/</span><span className="font-medium text-foreground">{key}</span></>}
             {viewOnly && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"><FontAwesomeIcon icon={faEye} className="h-3 w-3" />View only</span>}
+            {held && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400"><FontAwesomeIcon icon={faCirclePause} className="h-3 w-3" />On hold</span>}
             {done && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"><FontAwesomeIcon icon={faCircleCheck} className="h-3 w-3" />Completed</span>}
             <div className="ml-auto flex items-center gap-1">
               <DropdownMenu>
@@ -192,6 +231,12 @@ export function TaskDetailModal(props: Props) {
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                   <DropdownMenuSeparator />
+                  {canHold && (
+                    <DropdownMenuItem onSelect={() => setHoldOpen(true)}><FontAwesomeIcon icon={faCirclePause} className="mr-2 h-3.5 w-3.5 text-amber-500" />Put on hold</DropdownMenuItem>
+                  )}
+                  {held && isCeo && (
+                    <DropdownMenuItem onSelect={resume}><FontAwesomeIcon icon={faCirclePlay} className="mr-2 h-3.5 w-3.5 text-emerald-600" />Resume task</DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={() => onDuplicate(task)}><FontAwesomeIcon icon={faCopy} className="mr-2 h-3.5 w-3.5" />Duplicate</DropdownMenuItem>
                   {canDelete && (
                     <>
@@ -222,6 +267,21 @@ export function TaskDetailModal(props: Props) {
                 className="w-full bg-transparent text-[22px] font-semibold leading-tight tracking-tight focus:outline-none"
               />
 
+              {held && (
+                <div className="mt-3 flex flex-wrap items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-[13px] dark:border-amber-700/50 dark:bg-amber-950/30">
+                  <FontAwesomeIcon icon={faCirclePause} className="mt-0.5 h-4 w-4 text-amber-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300">On hold{task.hold_at ? ` since ${new Date(task.hold_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""} · put on hold by {heldBy}</p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-amber-900/90 dark:text-amber-200/90">{task.hold_reason}</p>
+                    {!isCeo && <p className="mt-1 text-xs text-amber-800/70 dark:text-amber-300/70">Locked until it's resumed.</p>}
+                  </div>
+                  {isCeo && (
+                    <Button size="sm" className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700" disabled={holdBusy} onClick={resume}>
+                      <FontAwesomeIcon icon={holdBusy ? faSpinner : faCirclePlay} spin={holdBusy} className="h-3.5 w-3.5" />Resume
+                    </Button>
+                  )}
+                </div>
+              )}
               {done && !viewOnly && (
                 <p className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-700 dark:text-emerald-400">
                   <FontAwesomeIcon icon={faLock} className="h-3 w-3" />This task is completed and locked. Reopen it to make changes.
@@ -363,7 +423,7 @@ export function TaskDetailModal(props: Props) {
               onFilesChanged={() => onRefresh(task.id)}
             />
 
-            {!viewOnly && <div className="flex flex-wrap items-center gap-3 border-t px-4 py-4 sm:px-6">
+            {!viewOnly && !held && <div className="flex flex-wrap items-center gap-3 border-t px-4 py-4 sm:px-6">
               {done ? (
                 <Button variant="outline" size="sm" className="gap-1.5" disabled={!!statusBusy} onClick={async () => {
                   setStatusBusy("reopen");
@@ -385,6 +445,11 @@ export function TaskDetailModal(props: Props) {
                     </Button>
                   </span>
                   {!task.has_main_file && <span className="text-xs text-muted-foreground">Upload the main file above to complete this task.</span>}
+                  {canHold && (
+                    <Button variant="outline" size="sm" className="ml-auto gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40" onClick={() => setHoldOpen(true)}>
+                      <FontAwesomeIcon icon={faCirclePause} className="h-3.5 w-3.5" />Put on hold
+                    </Button>
+                  )}
                 </>
               )}
             </div>}
@@ -394,11 +459,29 @@ export function TaskDetailModal(props: Props) {
         {/* ── Chat ────────────────────────────────────────────────────────── */}
         <aside className={cn("min-h-0 w-full flex-1 flex-col bg-muted/20 md:flex-none md:shrink-0 md:border-l", layout === "sidebar" ? "md:w-[340px]" : "md:w-[400px]", pane === "chat" ? "flex" : "hidden md:flex")}>
           <TaskChat
-            taskId={task.id} members={members} currentUserId={currentUserId} readOnly={task.can_chat === false}
+            taskId={task.id} members={members} currentUserId={currentUserId} readOnly={task.can_chat === false || (held && !isCeo)}
             refreshKey={[task.status, task.priority, task.due_date, task.type_id, task.planned_date, task.attachment_count, task.assignees.map((a) => a.id).join(",")].join("|")}
           />
         </aside>
       </div>
+
+      <Dialog open={holdOpen} onOpenChange={(v) => { if (!holdBusy) setHoldOpen(v); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Put this task on hold?</DialogTitle>
+            <DialogDescription>Add a reason.</DialogDescription>
+          </DialogHeader>
+          <Textarea autoFocus value={holdReason} onChange={(e) => setHoldReason(e.target.value)} rows={4} maxLength={500}
+            placeholder="Reason, e.g. waiting for the client's approval" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void hold(); }} />
+          <p className="text-right text-[11px] text-muted-foreground">{holdReason.length}/500</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHoldOpen(false)} disabled={holdBusy}>Cancel</Button>
+            <Button className="gap-1.5 bg-amber-600 text-white hover:bg-amber-700" onClick={hold} disabled={holdBusy || holdReason.trim().length < 3}>
+              {holdBusy && <FontAwesomeIcon icon={faSpinner} spin className="h-3.5 w-3.5" />}Put on hold
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <TypeManagerDialog open={typesOpen} onOpenChange={setTypesOpen} types={types} onChange={props.onTypesChange} />
     </>

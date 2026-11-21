@@ -1,3 +1,4 @@
+import { heldResponse } from "../../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
@@ -47,6 +48,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
@@ -95,6 +97,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 /** DELETE ?entry_id= — remove one of your own entries. */
 export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const r = await load(id, true);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();

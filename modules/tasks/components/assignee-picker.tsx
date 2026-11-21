@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 import { Plus, X, Users } from "@/components/shared/fa-icons";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -59,8 +60,11 @@ interface AssigneePickerProps {
 }
 
 /** Multi-assignee picker — pick individual members, a group of members, or expand an entire team. */
-export function AssigneePicker({ value, members, teams = [], onAddUsers, onAddTeam, onRemove, emptyLabel }: AssigneePickerProps) {
+export function AssigneePicker({ value, members: allMembers, teams = [], onAddUsers, onAddTeam, onRemove, emptyLabel }: AssigneePickerProps) {
   const [open, setOpen] = useState(false);
+  // CEOs are never assigned, and nobody assigns a task to themselves.
+  const me = useShellProfile()?.user_id;
+  const members = allMembers.filter((m) => m.role !== "super_admin" && m.id !== me);
   const selectedIds = new Set(value.map((v) => v.id));
 
   return (

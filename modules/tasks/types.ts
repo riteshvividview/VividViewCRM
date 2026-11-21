@@ -74,6 +74,8 @@ export interface TaskMember {
   id: string;
   full_name: string;
   avatar_url: string | null;
+  /** super_admin = CEO (never assignable), team_lead, hr, employee. */
+  role?: string;
 }
 
 /** A persisted comment from /api/tasks/[id]/comments. */
@@ -193,6 +195,10 @@ export interface Task {
   brief_note: string | null;
   reference_note: string | null;
   main_note: string | null;
+  /** On hold: when, by whom and why (null = not on hold). Only a CEO can resume it. */
+  hold_at?: string | null;
+  hold_by?: string | null;
+  hold_reason?: string | null;
   project: TaskProjectRef | null;
   board: TaskBoardRef | null;
   position: number;

@@ -1,3 +1,4 @@
+import { heldResponse } from "../../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const admin = adminClient();
   const existing = await loadTask(admin, id, ctx.workspaceId);
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
@@ -47,7 +49,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: existingAssignees } = await admin.from("task_assignees").select("user_id").eq("task_id", id);
   const existingIds = new Set((existingAssignees ?? []).map((a) => a.user_id));
-  const newIds = Array.from(userIds).filter((uid) => !existingIds.has(uid));
+  // A CEO is never assigned (they hand out work, they don't get tasks).
+  const { data: ceos } = await admin.from("profiles").select("user_id").eq("workspace_id", ctx.workspaceId).eq("role", "super_admin");
+  const ceoIds = new Set((ceos ?? []).map((c) => c.user_id));
+  const newIds = Array.from(userIds).filter((uid) => !existingIds.has(uid) && !ceoIds.has(uid));
 
   if (newIds.length > 0) {
     await admin.from("task_assignees").insert(
@@ -81,6 +86,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const admin = adminClient();
   const existing = await loadTask(admin, id, ctx.workspaceId);
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });

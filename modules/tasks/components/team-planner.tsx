@@ -150,7 +150,7 @@ export function TeamPlanner({ teamId }: { teamId?: string }) {
       {!current ? (
         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed text-center">
           <Users className="h-7 w-7 text-muted-foreground" />
-          <p className="mt-3 font-medium">{teams.length ? "Choose a team" : "You are not in a team yet"}</p>
+          <p className="mt-3 font-medium">{teams.length ? "Choose a team" : isLead ? "No teams yet. Create one from the sidebar." : "You are not in a team yet"}</p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
             {canManage ? "Create a team and add people to see their week here." : "A team lead adds you to a team. You will then see your team's week here."}
           </p>

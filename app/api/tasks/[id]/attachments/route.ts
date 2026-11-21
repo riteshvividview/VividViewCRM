@@ -1,3 +1,4 @@
+import { heldResponse } from "../../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../../_lib/helpers";
@@ -17,7 +18,7 @@ async function loadTask(id: string, write = true) {
   if (!ctx) return { error: err("Unauthorized", 401) };
   const admin = adminClient();
   const { data: task } = await admin.from("tasks")
-    .select("id, title, number, status, created_at, created_by, assignee_id, project:task_projects!project_id(name, key)")
+    .select("id, title, number, status, created_at, created_by, assignee_id, hold_at, project:task_projects!project_id(name, key)")
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!task || !(await (write ? canAccessTask : canReadTask)(admin, ctx, id))) return { error: err("Task not found", 404) };
   const teamId = (await teamIdsOfTasks(admin, [id])).get(id);
@@ -75,6 +76,7 @@ export async function GET(request: NextRequest, { params }: Params) {
  */
 export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const r = await loadTask(id);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
@@ -164,6 +166,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 /** DELETE ?attachment_id= — the uploader, the task creator or a lead. */
 export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const r = await loadTask(id);
   if ("error" in r) return r.error;
   if (r.ctx.readOnly) return readOnlyResponse();
@@ -173,6 +176,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   if (!att) return err("File not found", 404);
   if (att.kind !== "chat" && !(await canEditTask(r.admin, r.ctx, id))) return err(NOT_YOURS_MESSAGE, 403);
   if (att.kind !== "chat" && r.task.status === "done") return err("This task is completed. Reopen it to change its files.");
+  if (r.task.hold_at && r.ctx.role !== "super_admin") return err("This task is on hold.");
   if (!(isLead(r.ctx.role) || att.uploaded_by === r.ctx.userId || r.task.created_by === r.ctx.userId)) {
     return err("You can only remove files you uploaded", 403);
   }

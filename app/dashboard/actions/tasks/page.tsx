@@ -10,6 +10,8 @@ import { BordioTable } from "@/modules/tasks/components/bordio-table";
 import { TaskFilters, applyTaskFilters, EMPTY_FILTERS, type TaskFilterState } from "@/modules/tasks/components/task-filters";
 import { STATUS_CONFIG, type TaskStatus } from "@/modules/tasks/types";
 import { cn } from "@/lib/utils";
+import { MentionsInbox } from "@/modules/tasks/components/mentions-inbox";
+import { useShellProfile } from "@/lib/supabase/profile-context";
 
 const COLUMNS: KanbanColumn[] = (Object.keys(STATUS_CONFIG) as TaskStatus[]).map((s) => ({ id: s, name: STATUS_CONFIG[s].label, status_key: s }));
 
@@ -22,7 +24,14 @@ export default function AllTasksPage() {
   const [view, setViewState] = useState<"table" | "kanban">("kanban");
   useEffect(() => { try { if (localStorage.getItem("vividview-tasks-view") === "table") setViewState("table"); } catch {} }, []);
   const setView = (v: "table" | "kanban") => { setViewState(v); try { localStorage.setItem("vividview-tasks-view", v); } catch {} };
-  const [mineOnly, setMineOnly] = useState(true);
+  // The CEO doesn't do tasks: Everyone, plus a Mentions inbox, instead of "My work".
+  const isCeo = useShellProfile()?.role === "super_admin";
+  const [mineOnly, setMineOnly] = useState(!isCeo);
+  const [mentions, setMentions] = useState(false);
+  const openById = (id: string) => {
+    const t = tasks.find((x) => x.id === id);
+    if (t) openTask(t); else window.location.assign(`/dashboard/actions/tasks?task=${id}`);
+  };
   const [filters, setFilters] = useState<TaskFilterState>(EMPTY_FILTERS);
 
   const visible = useMemo(() => {
@@ -36,19 +45,27 @@ export default function AllTasksPage() {
         <Button className="h-9 rounded-full px-4" onClick={() => openQuickAdd()}>
           <FontAwesomeIcon icon={faPlus} className="mr-1.5 h-3.5 w-3.5" />New task
         </Button>
-        <div className="flex rounded-full bg-muted p-1">
+        <div className={cn("flex rounded-full bg-muted p-1", mentions && "pointer-events-none opacity-40")}>
           {([["table", "Table view", faTableList], ["kanban", "Kanban board", faTableColumns]] as const).map(([v, label, icon]) => (
             <button key={v} onClick={() => setView(v)} className={cn("flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium", view === v ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>
               <FontAwesomeIcon icon={icon} className="h-3.5 w-3.5" />{label}
             </button>
           ))}
         </div>
-        <div className="flex rounded-full bg-muted p-1">
-          {([[true, "My work"], [false, "Everyone"]] as const).map(([v, label]) => (
-            <button key={label} onClick={() => setMineOnly(v)} className={cn("rounded-full px-3.5 py-1.5 text-[13px] font-medium", mineOnly === v ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>{label}</button>
-          ))}
-        </div>
-        <div className="ml-auto"><TaskFilters value={filters} onChange={setFilters} members={members} types={types} brands={projects} /></div>
+        {isCeo ? (
+          <div className="flex rounded-full bg-muted p-1">
+            {([[false, "Everyone"], [true, "Mentions"]] as const).map(([v, label]) => (
+              <button key={label} onClick={() => { setMentions(v); setMineOnly(false); }} className={cn("rounded-full px-3.5 py-1.5 text-[13px] font-medium", mentions === v ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex rounded-full bg-muted p-1">
+            {([[true, "My work"], [false, "Everyone"]] as const).map(([v, label]) => (
+              <button key={label} onClick={() => setMineOnly(v)} className={cn("rounded-full px-3.5 py-1.5 text-[13px] font-medium", mineOnly === v ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+            ))}
+          </div>
+        )}
+        <div className={cn("ml-auto", mentions && "pointer-events-none opacity-40")}><TaskFilters value={filters} onChange={setFilters} members={members} types={types} brands={projects} /></div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
         {inNoTeam && (
@@ -57,7 +74,9 @@ export default function AllTasksPage() {
             You’re not in a team yet. Team tasks appear here once you’re added to a team.
           </p>
         )}
-        {view === "kanban" ? (
+        {mentions ? (
+          <MentionsInbox onOpen={openById} />
+        ) : view === "kanban" ? (
           <BordioKanban
             columns={COLUMNS}
             columnOf={(t) => t.status}

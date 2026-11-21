@@ -1,3 +1,4 @@
+import { heldResponse } from "../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isLead, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
@@ -47,6 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id, ...(nextTask ? [nextTask.id as string] : [])] }));
 
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const body = await request.json().catch(() => ({}));
   const admin = adminClient();
 
@@ -54,6 +56,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!existing || !(await canAccessTask(admin, ctx, id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (!(await canEditTask(admin, ctx, id))) return NextResponse.json({ error: NOT_YOURS_MESSAGE, code: "not_yours" }, { status: 403 });
+  if (existing.hold_at && ctx.role !== "super_admin") return NextResponse.json({ error: "This task is on hold.", code: "on_hold" }, { status: 409 });
 
   const updates: Record<string, unknown> = {};
   for (const field of PATCHABLE_FIELDS) {
@@ -275,6 +278,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const admin = adminClient();
   const { data: existing } = await hideTrashed(admin.from("tasks").select("id, title, created_by, assignee_id"), await trashReady(admin))
     .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();

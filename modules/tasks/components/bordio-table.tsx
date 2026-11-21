@@ -369,6 +369,7 @@ function TitleCell({ task: t, editable, lockedHint, onOpen, onRename }: { task: 
   return (
     <div className="flex h-8 min-w-0 items-center gap-1 px-2">
       <button type="button" onClick={onOpen} title={t.title} className={cn("min-w-0 truncate text-left font-medium hover:underline", done && "text-muted-foreground")}>{t.title}</button>
+      {t.hold_at && <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-px text-[10px] font-semibold text-amber-700 dark:text-amber-400" title={t.hold_reason ?? "On hold"}>On hold</span>}
       {t.comment_count > 0 && <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"><FontAwesomeIcon icon={faComment} className="h-3 w-3" />{t.comment_count}</span>}
       {t.attachment_count > 0 && <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"><FontAwesomeIcon icon={faPaperclip} className="h-3 w-3" />{t.attachment_count}</span>}
       {editable ? (

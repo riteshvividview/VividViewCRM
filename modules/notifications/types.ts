@@ -12,7 +12,10 @@ export type NotificationType =
   | "leave_request"
   | "leave_decision"
   | "hr_request"
-  | "report_resolved";
+  | "report_resolved"
+  | "task_on_hold"
+  | "task_resumed"
+  | "hold_digest";
 
 export interface Notification {
   id: string;

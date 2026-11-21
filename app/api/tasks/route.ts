@@ -186,9 +186,9 @@ export async function POST(request: NextRequest) {
     if (!body.team_id || (await teamMemberIds(admin, body.team_id)).has(ctx.userId)) assigneeUserIds.add(ctx.userId);
   }
 
-  // Only workspace members can be assigned.
+  // Only workspace members can be assigned, never a CEO (they hand out work, they don't get tasks).
   const { data: validProfiles } = await admin.from("profiles").select("user_id, full_name")
-    .eq("workspace_id", ctx.workspaceId).in("user_id", Array.from(assigneeUserIds));
+    .eq("workspace_id", ctx.workspaceId).neq("role", "super_admin").in("user_id", Array.from(assigneeUserIds));
   const assigneeIds = (validProfiles ?? []).map((p) => p.user_id);
   if (assigneeIds.length > 0) {
     insertData.assignee_id = assigneeIds[0];

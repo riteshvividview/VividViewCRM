@@ -1,3 +1,4 @@
+import { heldResponse } from "../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, readOnlyResponse, syncWorkspace } from "../_lib/helpers";
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
   const admin = adminClient();
+  { const held = await heldResponse(String(body.task_id ?? "")); if (held) return held; }
   const { data: task } = await hideTrashed(admin.from("tasks").select("id"), await trashReady(admin)).eq("id", body.task_id ?? "").eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (!task || !(await canAccessTask(admin, ctx, task.id))) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (!(await canEditTask(admin, ctx, task.id))) return NextResponse.json({ error: "You can only block time for tasks you are working on" }, { status: 403 });
@@ -60,6 +62,13 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ block: data });
 }
 
+/** A planner block of a task on hold can't be moved or removed until the task is resumed. */
+async function heldBlock(blockId: string) {
+  if (!blockId) return null;
+  const { data } = await adminClient().from("task_time_blocks").select("task_id").eq("id", blockId).maybeSingle();
+  return data?.task_id ? heldResponse(data.task_id) : null;
+}
+
 /** PATCH { id, start_at, end_at } (drag/resize) */
 export async function PATCH(request: NextRequest) {
   const ctx = await getAuthContext();
@@ -69,6 +78,7 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const err = validRange(body.start_at, body.end_at);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
+  { const held = await heldBlock(String(body.id ?? "")); if (held) return held; }
   const { data, error } = await adminClient().from("task_time_blocks")
     .update({ start_at: new Date(body.start_at).toISOString(), end_at: new Date(body.end_at).toISOString() })
     .eq("id", body.id ?? "").eq("workspace_id", ctx.workspaceId).select(SELECT).maybeSingle();
@@ -84,6 +94,7 @@ export async function DELETE(request: NextRequest) {
   if (ctx.readOnly) return readOnlyResponse();
   syncWorkspace(ctx.workspaceId, { tasks: [] });
   const id = request.nextUrl.searchParams.get("id") ?? "";
+  { const held = await heldBlock(id); if (held) return held; }
   const { error } = await adminClient().from("task_time_blocks").delete().eq("id", id).eq("workspace_id", ctx.workspaceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

@@ -60,6 +60,7 @@ export function TaskCard({ task, onOpen, onToggleDone, compact, draggable = true
           {initials(assignee?.full_name)}
         </span>
         <p className={cn("flex-1 break-words font-semibold leading-snug", compact ? "text-[12px]" : "text-[13px]", done && "font-medium")}>
+          {task.hold_at && <span className="mr-1 inline-flex items-center rounded bg-black/30 px-1 py-px align-middle text-[9px] font-bold uppercase tracking-wide text-amber-200" title={task.hold_reason ?? "On hold"}>On hold</span>}
           {task.title}
         </p>
         {onToggleDone && (

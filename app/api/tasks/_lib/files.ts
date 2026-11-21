@@ -198,7 +198,7 @@ async function purgeable(admin: SupabaseClient, workspaceId: string, days: numbe
   let q = admin.from("task_attachments")
     .select("id, task_id, file_path, storage, size_bytes, task:tasks!inner(status, completed_at)")
     .eq("workspace_id", workspaceId).in("kind", ["reference", "chat"]).is("purged_at", null).not("file_path", "is", null)
-    .eq("task.status", "done").lte("task.completed_at", cutoff);
+    .eq("task.status", "done").lte("task.completed_at", cutoff).is("task.hold_at", null);
   if (await keepReady(admin)) q = q.eq("keep", false);
   const { data: rows } = await q.limit(1000);
   if (!rows?.length) return [];

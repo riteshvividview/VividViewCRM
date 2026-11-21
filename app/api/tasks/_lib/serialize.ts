@@ -11,7 +11,7 @@ export const TASK_SELECT = `
   project_id, board_id, position, story_points, start_date,
   estimated_hours, actual_hours, started_at, completed_at,
   planned_date, color, board_column_id, recurrence_parent_id, type_id, number, team_id,
-  brief_note, reference_note, main_note,
+  brief_note, reference_note, main_note, hold_at, hold_by, hold_reason,
   project:task_projects!project_id(id, name, color, key),
   type:task_types!type_id(id, name, color),
   board:task_boards!board_id(id, name)

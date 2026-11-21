@@ -1,3 +1,4 @@
+import { heldResponse } from "../../../_lib/hold";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { adminClient, getAuthContext, isHR, readOnlyResponse, syncWorkspace } from "../../../_lib/helpers";
@@ -11,6 +12,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   syncWorkspace(ctx.workspaceId, () => ({ tasks: [id] }));
 
   const { id, commentId } = await params;
+  { const held = await heldResponse(id); if (held) return held; } // on hold: no changes until a CEO resumes it
   const admin = adminClient();
 
   const { data: comment } = await admin

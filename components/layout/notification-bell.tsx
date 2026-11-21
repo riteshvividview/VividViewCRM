@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { faBell } from "@fortawesome/free-regular-svg-icons";
 import {
-  faListCheck, faCodeMerge, faUserPlus, faAt, faCalendarDays, faTriangleExclamation, faFilePen, faCalendarCheck, faCircleCheck, faInbox,
+  faListCheck, faCodeMerge, faUserPlus, faAt, faCalendarDays, faTriangleExclamation, faFilePen, faCalendarCheck, faCircleCheck, faInbox, faCirclePause, faCirclePlay,
 } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications";
@@ -33,6 +33,9 @@ const TYPE_CONFIG: Record<NotificationType, { icon: IconDefinition; color: strin
   leave_decision:                 { icon: faCalendarCheck, color: "text-muted-foreground" },
   hr_request:                     { icon: faFilePen,       color: "text-muted-foreground" },
   report_resolved:                { icon: faCircleCheck,   color: "text-emerald-500" },
+  task_on_hold:                   { icon: faCirclePause,   color: "text-amber-500" },
+  task_resumed:                   { icon: faCirclePlay,    color: "text-emerald-500" },
+  hold_digest:                    { icon: faCirclePause,   color: "text-amber-500" },
 };
 
 function timeAgo(iso: string) {
@@ -88,6 +91,7 @@ export function NotificationBell() {
   function openNotification(n: Notification) {
     markRead(n.id);
     if (n.entity_type === "task_deleted") return; // the task no longer exists
+    if (n.entity_type === "hold_list") { setOpen(false); router.push("/dashboard/actions/on-hold"); return; }
     if (n.entity_type?.startsWith("task") && n.entity_id) {
       setOpen(false);
       // A full navigation, so the Tasks app opens this task from the ?task= link.
